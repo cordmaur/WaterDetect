@@ -1,0 +1,38 @@
+DetectWater Class
+
+DWLoader
+
+
+DWProcessor
+
+
+
+Opção 1 (sem batch):
+
+DetectWater
+	- wrapper de todo o processo
+	- faz o parse do arquivo de configuração e cria o dicionário de opções para o DWLoader e para o DWProcessor
+
+	- cria um DWLoader (input folder, product, etc.)
+	- chama o DWProcessor (DWLoader, output_folder, options, channels, points, etc.)
+DWProcessor (recebe um DWLoader ou um dicionário de bandas (red, green, etc.))
+	    (recebe um dicionário com as opções)
+	- faz um loop DWLoader.Pop()
+	- Pop() retorna bands e mask em arrays
+	- Cria o DWProcessImage
+	- DWProcessImage.run(bands, masks, options)
+		- DWProcessImage que faz o processamento em si
+		- DWProcessImage retorna a matriz resposta
+	- DWProcessor pega a resposta e salva no output folder
+	- DWLoader.saveraster(matriz resposta)
+	- faz novamente DWLoader.Pop() até terminar a lista
+
+DWLoader (poderíamos ter DWTheiaLoader, DWLandsatLoader, etc.)
+	- proxy entre os produtos no disco e o formato necessário para processar
+	- Coloca todas as bandas na mesma resolução
+	- Pop() pega as bandas e carrega elas em numpy arrays
+		- pega as mascaras e devolve uma máscara única
+		- carrega geotransform e projection e deixa na memória
+		- todo saveraster enquanto não tem outro Pop() será com essa projeção
+
+Opção 2 (sem batch)
