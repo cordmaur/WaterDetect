@@ -14,11 +14,11 @@ from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
-from sklearn.decomposition import PCA
-from sklearn.mixture import GMM
 from sklearn.cross_validation import cross_val_score
 from sklearn.svm import LinearSVC
 from sklearn.grid_search import GridSearchCV
+from sklearn.decomposition import PCA
+from sklearn.mixture import GMM
 from sklearn import preprocessing
 
 from scipy.spatial import ConvexHull, Delaunay
@@ -164,28 +164,45 @@ def processDetectWater(geo_bands, bands_keys, graph_bands, invalid_mask, base_fi
 
         # detect the water pixels and stores a matrix with the clusters
         # water=1 Vegetation=2
-        try:
-            matrice_cluster = detectWater(geo_bands, bands_combination, invalid_mask,
-                                          clustering=clustering,
-                                          classifier=classifier,
-                                          min_clusters=min_clusters,
-                                          max_clusters=max_clusters,
-                                          clip_mndwi=clip_mndwi)
+        # try:
+            # matrice_cluster = detectWater(geo_bands, bands_combination, invalid_mask,
+            #                               clustering=clustering,
+            #                               classifier=classifier,
+            #                               min_clusters=min_clusters,
+            #                               max_clusters=max_clusters,
+            #                               clip_mndwi=clip_mndwi)
 
-            # plot the graphs specified in graphbands
-            if graph_bands:
-                plotGraphs(geo_bands, graph_bands, matrice_cluster, filename, invalid_mask, 1000)
+        import DWImage
 
-            # plotPCA(geo_bands, matrice_cluster, filename, invalid_mask, 1000)
+        opt = {'clustering': 'aglomerative',
+               'min_clusters': 2,
+               'max_clusters': 5,
+               'clip_mir2': 0.05,
+               'classifier': 'naive_bayes',
+               'train_size': 0.1,
+               'min_train_size': 1000,
+               'max_train_size': 10000,
+               'score_index': 'calinsk',
+               'detectwatercluster': 'maxmndwi'}
 
-            # export the clustered matrix as a raster
-            array2raster(filename + '_Clusters.tif', matrice_cluster, geotransform, projection, gdal.GDT_Byte, 0)
+        dw_image = DWImage.DWImageClustering(geo_bands, bands_combination, invalid_mask, opt)
+        matrice_cluster = dw_image.run_detect_water()
 
-            array2raster(filename + '_WaterMask.tif', matrice_cluster == 1, geotransform, projection, gdal.GDT_Byte, 0)
 
-        except Exception as err:
-            print("############# ERROR ################")
-            print(err)
+        # plot the graphs specified in graphbands
+        if graph_bands:
+            plotGraphs(geo_bands, graph_bands, matrice_cluster, filename, invalid_mask, 1000)
+
+        # plotPCA(geo_bands, matrice_cluster, filename, invalid_mask, 1000)
+
+        # export the clustered matrix as a raster
+        array2raster(filename + '_Clusters.tif', matrice_cluster, geotransform, projection, gdal.GDT_Byte, 0)
+
+        array2raster(filename + '_WaterMask.tif', matrice_cluster == 1, geotransform, projection, gdal.GDT_Byte, 0)
+
+        # except Exception as err:
+        #     print("############# ERROR ################")
+        #     print(err)
 
     return
 
@@ -403,7 +420,8 @@ def loadRasterImages(geo_bands, ref_band):
     # resizing bands as Red band
     for band_key in geo_bands.keys():
         gdal_img = geo_bands[band_key]
-        raster_bands.update({band_key: gdal_img.ReadAsArray(buf_xsize=x_size, buf_ysize=y_size)/10000})
+        raster_band = gdal_img.ReadAsArray(buf_xsize=x_size, buf_ysize=y_size).astype(dtype=np.float32)/10000
+        raster_bands.update({band_key: raster_band})
         del gdal_img
 
     return raster_bands
@@ -716,7 +734,7 @@ def applyAglomerativeCluster(data, k, train_size=1.0):
     # # split data not to train with all pixels (for performance purposes)
     # train_data, test_data = getTrainTestDataset(data, train_size, min_train_size=5000, max_train_size=10000)
 
-    cluster_model = cluster.AgglomerativeClustering(n_clusters=k, linkage='ward')
+
     result = cluster_model.fit_predict(data)
 
     return result
@@ -930,11 +948,12 @@ def getTrainTestDataset(data, train_size, min_train_size=10000, max_train_size=1
 
 def createOutputDirectory(base_name, shp_name):
     # create the output folder begining with the shape name and after, the tile name
-    shp_name, _ = os.path.splitext(shp_name)
-    tile_name = os.path.split(base_name)[-1]
-    base_name = os.path.join(os.path.split(base_name)[0], shp_name, tile_name)
+    # shp_name, _ = os.path.splitext(shp_name)
+    # tile_name = os.path.split(base_name)[-1]
+    # base_name = os.path.join(os.path.split(base_name)[0], shp_name, tile_name)
+    base_name = os.path.join(base_name, 'TestNewSystem')
     os.makedirs(base_name, exist_ok=True)
-    base_name = os.path.join(base_name, tile_name)
+    base_name = os.path.join(base_name, 'image1')
     return base_name
 
 

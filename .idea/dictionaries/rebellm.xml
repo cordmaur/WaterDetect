@@ -2,9 +2,21 @@
   <dictionary name="rebellm">
     <words>
       <w>aglomerative</w>
+      <w>calinsk</w>
+      <w>calinski</w>
+      <w>clusterid</w>
+      <w>clusterization</w>
+      <w>detectwatercluster</w>
+      <w>harabaz</w>
+      <w>kmeans</w>
+      <w>matrice</w>
+      <w>maxmndwi</w>
+      <w>minmir</w>
       <w>mndwi</w>
       <w>ndvi</w>
+      <w>perceptron</w>
       <w>rebellm</w>
+      <w>silhouete</w>
       <w>theia</w>
     </words>
   </dictionary>

@@ -131,7 +131,7 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--out", help="Output directory. Required.", required=True, type=str)
     parser.add_argument("-s", "--shp", help="SHP file. Required.", type=str)
     parser.add_argument("-p", "--product", help='The product to be processed (S2_Theia, Landsat, etc.)',
-                        default='S2_Theia', type=str)
+                        default='S2_THEIA', type=str)
     parser.add_argument('-g', '--off_graphs', help='Turns off the scatter plot graphs', action='store_true')
 
     # product type (theia, sen2cor, landsat, etc.)
