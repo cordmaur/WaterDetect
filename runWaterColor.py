@@ -25,64 +25,36 @@ Created on:     Fri Nov 23 10:30:20 2018
 # import numpy as np
 # from StatisticsCalculation import CalculateStatistics2
 
-from pathlib import Path
-import CalculateStatistics2
+import numpy as np
+from DWInputOutput import DWutils, DWSaver, DWLoader
+import DWImage
 
 
 class WaterDetect:
+
+    # initialize the variables
+    max_invalid_pixels = 0.8  # The maximum percentage of invalid (masked) pixels to continue
+    min_mndwi = 0.0  # mndwi threshold
+    clustering = 'aglomerative'  # aglomerative, kmeans, gauss_mixture
+    classifier = 'naive_bayes'  # naive_bays, MLP, Hull, SVM
+    clip_mndwi = 0.05  # None or mndwi value to clip false positives
+    ref_band = 'Red'
+
     def __init__(self, input_folder, output_folder, shape_file, product):
 
-        self.input_folder = self.check_path(input_folder, is_dir=True)
-        self.output_folder = self.check_path(output_folder, is_dir=True)
-        self.shape_file = self.check_path(shape_file, is_dir=False)
+        self.bands_cluster = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
+        self.bands_graphs = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
 
-        self.images = self.load_input_images(self.input_folder)
+        self.loader = DWLoader(input_folder, shape_file, product)
+
+        for _ in self.loader:
+            print(self.loader.current_image())
+
+        self.output_folder = DWutils.check_path(output_folder, is_dir=True)
 
         self.product = product
+
         return
-
-    @staticmethod
-    def check_path(path_str, is_dir=False):
-        """
-        Check if the path/file exists and returns a Path variable with it
-        :param path_str: path string to test
-        :param is_dir: whether if it is a directory or a file
-        :return: Path type variable
-        """
-        path = Path(path_str)
-
-        if is_dir:
-            if not path.is_dir():
-                raise OSError('The specified folder {} does not exist'.format(path_str))
-        else:
-            if not path.exists():
-                raise OSError('The specified file {} does not exist'.format(path_str))
-
-        print(('Folder' if is_dir else 'File') + ' {} verified.'.format(path_str))
-        return path
-
-    @staticmethod
-    def load_input_images(input_folder):
-        """
-        Return a list of directories in input_folder. These folders are the repository for satellite products
-        :param input_folder: folder that stores the images
-        :return: list of images (i.e. directories)
-        """
-        return [i for i in input_folder.iterdir() if i.is_dir()]
-
-    def load_product_bands(self, image_folder):
-
-        print('Retrieving bands for image: ' + image_folder.as_posix())
-        if self.product == 'S2_THEIA':
-            # get flat reflectance bands in a list
-            bands = [file for file in image_folder.iterdir() if
-                     file .suffix == '.tif' and 'FRE' in file.stem and 'V1' in file.stem]
-            for b in bands:
-                print(b.stem)
-        else:
-            bands = None
-
-        return bands
 
     def load_mask_bands(self, image_folder):
         masks = []
@@ -111,14 +83,69 @@ class WaterDetect:
 
     def run(self):
 
-        for image in self.images:
+        # todo: colocar tudo dentro do loop em um try catch para pular as imagens com erro
+        for image in self.loader:
+            # image = self.loader
+            image.open_image(ref_band_name='Red')
+            saver = DWSaver(self.output_folder, image.name(), image.product,
+                            image.get_geo_transform(), image.get_projection(), 'TestNewSystem')
 
-            bands = self.load_product_bands(image)
-            masks = self.load_mask_bands(image)
+            bands = image.load_raster_bands(['Green', 'Mir2', 'Nir2'])
+
+            # calculate the MNDWI mask and saves it
+            mndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Mir2'])
+            image.update_mask(mask)
+            bands.update({'mndwi': mndwi})
+            saver.save_array(mndwi, 'MNDWI')
+
+            # calculate the NDWI mask and saves it
+            ndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Nir2'])
+            image.update_mask(mask)
+            bands.update({'ndwi': ndwi})
+
+            # if bands_keys is not a list of lists, transform it
+            if type(self.bands_cluster[0]) == str:
+                self.bands_cluster = [self.bands_cluster]
+
+            # loop through the bands combinations to make the clusters
+            for band_combination in self.bands_cluster:
+
+                image.load_raster_bands(band_combination)
+
+                print('Calculating cluster for the following combination of bands:')
+                print(band_combination)
+
+                # create the clustering image
+                dw_image = DWImage.DWImageClustering(bands, band_combination, image.invalid_mask, {})
+                matrice_cluster = dw_image.run_detect_water()
+
+                # prepare the base product name based on algorithm and bands, to create the directory
+                product_name = dw_image.create_product_name()
+
+                # save the water mask and the clustering results
+                # saver.save_array(bands['Green'], 'water_mask', opt_relative_path=product_name)
+                saver.save_array(dw_image.water_mask, 'water_mask', opt_relative_path=product_name)
+                saver.save_array(dw_image.cluster_matrix, 'clusters', opt_relative_path=product_name)
+
+                # unload bands
+
+                # plot the graphs specified in graph_bands
+                graph_basename = saver.output_folder.joinpath(product_name).joinpath(saver.base_name + product_name)\
+                    .as_posix()
+                DWutils.plot_graphs(bands, self.bands_graphs, matrice_cluster,
+                                    graph_basename, image.invalid_mask, 1000)
+
+            # Test if there is enough valid pixels in the clipped images
+            # if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.max_invalid_pixels:
+            #     print('Not enough valid pixels in the image area')
+            #     return
+
+            # bands = self.load_product_bands(image)
+            # masks = self.load_mask_bands(image)
 
             # if there are bands loaded call the water detection algorithm
-            if bands:
-                CalculateStatistics2.Treat_files(bands, masks, self.product, self.output_folder, self.shape_file)
+            # if bands:
+            #     CalculateStatistics2.Treat_files(bands, masks, self.product, self.output_folder, self.shape_file)
 
         return
 
@@ -147,7 +174,7 @@ if __name__ == '__main__':
                                product=args.product)
     water_detect.run()
 
-    print(water_detect.input_folder)
+    # print(water_detect.input_folder)
 
     # list of images folders
     # loop through it

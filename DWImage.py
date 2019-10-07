@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn import cluster
 from sklearn import metrics
 from sklearn.mixture import GMM
@@ -8,6 +7,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn.svm import LinearSVC
 from sklearn.grid_search import GridSearchCV
+from DWInputOutput import DWutils
 
 
 class DWImageClustering:
@@ -375,24 +375,6 @@ class DWImageClustering:
     ############################################################################
     # Other utility functions
     # -------------------------------------------------------------------------#
-    def get_train_test_data(self, data):
-        """
-        Split the provided data in train-test bunches
-        :param data: data to be splited
-        :return: train and test datasets
-        """
-        dataset_size = data.shape[0]
-        train_size = self.options['train_size']
-
-        if (dataset_size * train_size) < self.options['min_train_size']:
-            train_size = self.options['min_train_size'] / dataset_size
-            train_size = 1 if train_size > 1 else train_size
-
-        elif (dataset_size * train_size) > self.options['max_train_size']:
-            train_size = self.options['max_train_size'] / dataset_size
-
-        return train_test_split(data, train_size=train_size)
-
     def split_data_by_bands(self, data, selected_keys):
         """
         Gets data in column format (each band is a column) and returns only the desired bands
@@ -407,6 +389,39 @@ class DWImageClustering:
             bands_index.append(bands_keys.index(key))
 
         return data[:, bands_index]
+
+    def create_product_name(self):
+
+        clustering = self.options['clustering']
+        classifier = self.options['classifier']
+        clip_mir2 = self.options['clip_mir2']
+
+        if clustering == 'aglomerative':
+            product_name = 'AC_'
+        elif clustering == 'gauss_mixture':
+            product_name = 'GM_'
+        elif clustering == 'kmeans':
+            product_name = 'KM_'
+        else:
+            product_name = 'ERROR_'
+
+        if classifier == 'naive_bayes':
+            product_name += 'NB_'
+        elif classifier == 'MLP':
+            product_name += 'MLP_'
+        elif classifier == 'Hull':
+            product_name += 'Hull_'
+        elif classifier == 'SVM':
+            product_name += 'SVM'
+        else:
+            product_name += 'ERROR_'
+
+        if clip_mir2:
+            product_name += 'CM_'
+        for key in self.bands_keys:
+            product_name += str(key)
+
+        return product_name
 
     ############################################################################
     # MAIN run_detect_water function
@@ -431,7 +446,10 @@ class DWImageClustering:
             train_data_as_columns = self.data_as_columns
         else:
             # original train data keeps all the bands
-            train_data_as_columns, _ = self.get_train_test_data(self.data_as_columns)
+            train_data_as_columns, _ = DWutils.get_train_test_data(self.data_as_columns,
+                                                                   self.options['train_size'],
+                                                                   self.options['min_train_size'],
+                                                                   self.options['max_train_size'])
 
         # create data bunch only with the bands used for clustering
         split_train_data_as_columns = self.split_data_by_bands(train_data_as_columns, self.bands_keys)
@@ -471,3 +489,8 @@ class DWImageClustering:
 
 # todo: fazer a rotina ficar genrica para as bandas do machine learning
 # todo: carregar apenas as bandas que forem ser utilizadas
+# todo: deixar o train_data para poder fazer um gráfico mais rápido depois???
+# todo: fazer o clipping pelo shape
+# todo: fazer a leitura do Landsat8
+# todo: usar o conceito de driver para o Landsat e Theia
+# todo: criar um config ou passar os options para o wrapper
