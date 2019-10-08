@@ -7,6 +7,7 @@
       <w>clusterid</w>
       <w>clusterization</w>
       <w>dataset</w>
+      <w>dest</w>
       <w>detectwatercluster</w>
       <w>harabaz</w>
       <w>kmeans</w>
@@ -21,6 +22,7 @@
       <w>rebellm</w>
       <w>silhouete</w>
       <w>theia</w>
+      <w>wutils</w>
     </words>
   </dictionary>
 </component>

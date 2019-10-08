@@ -44,11 +44,9 @@ class WaterDetect:
 
         self.bands_cluster = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
         self.bands_graphs = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
+        self.create_composite = True
 
         self.loader = DWLoader(input_folder, shape_file, product)
-
-        for _ in self.loader:
-            print(self.loader.current_image())
 
         self.output_folder = DWutils.check_path(output_folder, is_dir=True)
 
@@ -81,14 +79,35 @@ class WaterDetect:
 
         return masks
 
+    def necessary_bands(self, ref_band):
+
+        if self.create_composite:
+            necessary_bands = {'Red', 'Green', 'Blue', 'Nir2', 'Mir2', ref_band}
+        else:
+            necessary_bands = set(ref_band)
+
+        necessary_bands = necessary_bands.union(set([item for sublist in self.bands_cluster for item in sublist]))
+        necessary_bands = necessary_bands.union(set([item for sublist in self.bands_graphs for item in sublist]))
+
+        return list(necessary_bands)
+
     def run(self):
 
         # todo: colocar tudo dentro do loop em um try catch para pular as imagens com erro
         for image in self.loader:
-            # image = self.loader
+            image = self.loader
+
+            # open image into DWLoader class, passing the reference band
             image.open_image(ref_band_name='Red')
+
             saver = DWSaver(self.output_folder, image.name(), image.product,
                             image.get_geo_transform(), image.get_projection(), 'TestNewSystem')
+
+            if image.shape_file:
+                image.clip_bands(self.necessary_bands('Red'), 'Red', saver.temp_dir)
+
+            if self.create_composite:
+                DWutils.create_composite(image.gdal_bands, saver.output_folder)
 
             bands = image.load_raster_bands(['Green', 'Mir2', 'Nir2'])
 

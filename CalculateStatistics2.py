@@ -972,7 +972,6 @@ def createComposite(bands, foldername, download='S2_THEIA'):
 
     return
 
-
 def createProductName(bands_combination, clustering='aglomerative', classifier='naive_bayes', clip_mndwi=None):
     if clustering == 'aglomerative':
         product_name = 'AC_'

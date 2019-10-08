@@ -1,13 +1,13 @@
+import os
 import sys
 import numpy as np
 from osgeo import gdal
 from pathlib import Path
-import os
+from sklearn.model_selection import train_test_split
+from shutil import copy
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-
 
 
 class DWutils:
@@ -87,7 +87,6 @@ class DWutils:
 
         return train_test_split(data, train_size=train_size)
 
-
     @staticmethod
     def plot_clustered_data(data, cluster_names, file_name, graph_options):
         plt.style.use('seaborn-whitegrid')
@@ -157,6 +156,22 @@ class DWutils:
 
         return
 
+    @staticmethod
+    def create_composite(bands, folder_name):
+
+        # copy the RGB clipped bands to output directory
+
+        redband = copy(bands['Red'].GetDescription(), folder_name)
+        greenband = copy(bands['Green'].GetDescription(), folder_name)
+        blueband = copy(bands['Blue'].GetDescription(), folder_name)
+
+        compositename = os.path.join(folder_name, os.path.split(folder_name)[-1] + '_composite.vrt')
+
+        os.system('gdalbuildvrt -separate ' + compositename + ' ' +
+                  redband + ' ' + greenband + ' ' + blueband)
+
+        return
+
 
 class DWLoader:
     dicS2BandNames = {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12', 'Nir': 'B8', 'Nir2': 'B8A'}
@@ -177,6 +192,7 @@ class DWLoader:
 
         # dictionary of bands pointing to gdal images
         self.gdal_bands = None
+        self._clipped_gdal_bands = None
 
         # dictionary of bands pointing to in memory arrays
         self.raster_bands = None
@@ -229,9 +245,9 @@ class DWLoader:
         ex. {'Green':'B3', 'Red':'B4'...}
         The result, will be a dictionary with Keys(BandName) and RasterImages as values
         """
-
         # reset gdal and raster bands
         self.gdal_bands = {}
+        self._clipped_gdal_bands = {}
         self.raster_bands = {}
         self.invalid_mask = False
 
@@ -299,6 +315,26 @@ class DWLoader:
 
         return gdal_ds
 
+    def clip_bands(self, bands_to_clip, ref_band, temp_dir):
+
+        opt = gdal.WarpOptions(cutlineDSName=self.shape_file, cropToCutline=True,
+                               srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Float32)
+
+
+        for band in bands_to_clip:
+            if band not in self._clipped_gdal_bands and band in self.gdal_bands:
+
+                dest_name = (temp_dir/(band+'.tif')).as_posix()
+                self._clipped_gdal_bands.update({band: gdal.Warp(destNameOrDestDS=dest_name,
+                                                                 srcDSOrSrcDSTab=self.gdal_bands[band],
+                                                                 options=opt)})
+                self.gdal_bands[band] = self._clipped_gdal_bands[band]
+                self.gdal_bands[band].FlushCache()
+
+        self._ref_band = self.gdal_bands[ref_band]
+
+        return
+
     def load_raster_bands(self, bands_list: list):
 
         if len(self.gdal_bands) == 0:
@@ -308,9 +344,10 @@ class DWLoader:
 
         for band in bands_list:
 
-            if band not in self.raster_bands and band != 'mndwi' and band != 'ndvi' and band != 'ndwi':
+            if band not in self.raster_bands and band in self.gdal_bands:
 
                 gdal_img = self.gdal_bands[band]
+
                 raster_band = gdal_img.ReadAsArray(buf_xsize=x_size, buf_ysize=y_size).astype(dtype=np.float32) / 10000
                 self.raster_bands.update({band: raster_band})
 
@@ -332,6 +369,8 @@ class DWSaver:
 
         self.geo_transform = geo_transform
         self.projection = projection
+
+        self._temp_dir = None
 
         return
 
@@ -357,3 +396,12 @@ class DWSaver:
         filename = filename.joinpath(name + '.tif').as_posix()
 
         DWutils.array2raster(filename, array, self.geo_transform, self.projection)
+
+    @property
+    def temp_dir(self):
+
+        if not self._temp_dir:
+            self._temp_dir = self.output_folder/'temp_dir'
+            self._temp_dir.mkdir(exist_ok=True)
+
+        return self._temp_dir
