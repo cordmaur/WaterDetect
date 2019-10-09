@@ -25,8 +25,8 @@ Created on:     Fri Nov 23 10:30:20 2018
 # import numpy as np
 # from StatisticsCalculation import CalculateStatistics2
 
-import numpy as np
 from DWInputOutput import DWutils, DWSaver, DWLoader
+from pathlib import Path
 import DWImage
 
 
@@ -37,20 +37,32 @@ class WaterDetect:
     min_mndwi = 0.0  # mndwi threshold
     clustering = 'aglomerative'  # aglomerative, kmeans, gauss_mixture
     classifier = 'naive_bayes'  # naive_bays, MLP, Hull, SVM
-    clip_mndwi = 0.05  # None or mndwi value to clip false positives
+    clip_mndwi = 0.1  # None or mndwi value to clip false positives
     ref_band = 'Red'
 
     def __init__(self, input_folder, output_folder, shape_file, product):
 
+        # initialize some parameters
+        # bands_cluster are the bands combinations to use in the clustering algorithm
         self.bands_cluster = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
+
+        # bands_graphs are the bands combinations to generate the graphs
         self.bands_graphs = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
         self.create_composite = True
 
+        # create a Loader for the product
         self.loader = DWLoader(input_folder, shape_file, product)
 
+        # stores the output folder
         self.output_folder = DWutils.check_path(output_folder, is_dir=True)
 
+        #
         self.product = product
+
+        if shape_file:
+            self.area_name = Path(shape_file).name.split('.')[-2]
+        else:
+            self.area_name = None
 
         return
 
@@ -82,7 +94,7 @@ class WaterDetect:
     def necessary_bands(self, ref_band):
 
         if self.create_composite:
-            necessary_bands = {'Red', 'Green', 'Blue', 'Nir2', 'Mir2', ref_band}
+            necessary_bands = {'Red', 'Green', 'Blue', 'Nir', 'Mir2', ref_band}
         else:
             necessary_bands = set(ref_band)
 
@@ -101,26 +113,32 @@ class WaterDetect:
             image.open_image(ref_band_name='Red')
 
             saver = DWSaver(self.output_folder, image.name(), image.product,
-                            image.get_geo_transform(), image.get_projection(), 'TestNewSystem')
+                            image.get_geo_transform(), image.get_projection(), self.area_name)
 
             if image.shape_file:
                 image.clip_bands(self.necessary_bands('Red'), 'Red', saver.temp_dir)
+                saver.update_geo_transform(image.get_geo_transform(), image.get_projection())
 
             if self.create_composite:
                 DWutils.create_composite(image.gdal_bands, saver.output_folder)
 
-            bands = image.load_raster_bands(['Green', 'Mir2', 'Nir2'])
+            bands = image.load_raster_bands(['Green', 'Mir2', 'Nir'])
 
             # calculate the MNDWI mask and saves it
             mndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Mir2'])
             image.update_mask(mask)
             bands.update({'mndwi': mndwi})
-            saver.save_array(mndwi, 'MNDWI')
 
             # calculate the NDWI mask and saves it
-            ndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Nir2'])
+            ndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Nir'])
             image.update_mask(mask)
             bands.update({'ndwi': ndwi})
+
+            saver.save_array(ndwi, image.name() + '_NDWI')
+            saver.save_array(mndwi, image.name() + '_MNDWI')
+
+            # save the mask
+            saver.save_array(image.invalid_mask, image.name() + '_invalid_mask')
 
             # if bands_keys is not a list of lists, transform it
             if type(self.bands_cluster[0]) == str:
@@ -143,8 +161,8 @@ class WaterDetect:
 
                 # save the water mask and the clustering results
                 # saver.save_array(bands['Green'], 'water_mask', opt_relative_path=product_name)
-                saver.save_array(dw_image.water_mask, 'water_mask', opt_relative_path=product_name)
-                saver.save_array(dw_image.cluster_matrix, 'clusters', opt_relative_path=product_name)
+                saver.save_array(dw_image.water_mask, product_name + '_water_mask', opt_relative_path=product_name)
+                saver.save_array(dw_image.cluster_matrix, product_name + '_clusters', opt_relative_path=product_name)
 
                 # unload bands
 
@@ -175,7 +193,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", help="The products input folder. Required.", required=True, type=str)
     parser.add_argument("-o", "--out", help="Output directory. Required.", required=True, type=str)
-    parser.add_argument("-s", "--shp", help="SHP file. Required.", type=str)
+    parser.add_argument("-s", "--shp", help="SHP file. Optional.", type=str)
     parser.add_argument("-p", "--product", help='The product to be processed (S2_Theia, Landsat, etc.)',
                         default='S2_THEIA', type=str)
     parser.add_argument('-g', '--off_graphs', help='Turns off the scatter plot graphs', action='store_true')
@@ -192,26 +210,3 @@ if __name__ == '__main__':
     water_detect = WaterDetect(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
                                product=args.product)
     water_detect.run()
-
-    # print(water_detect.input_folder)
-
-    # list of images folders
-    # loop through it
-    # process each image
-
-    # DetectWater wrapper class
-    #     - O wrapper deve criar um loader
-    #     - O loader vai ter X imagens e para cada X imagens, Y batches
-    #     - fazer um loop enquanto o loader != empty
-    #       - DWImage.process (loader.pop())
-
-    # DWLoader (proxy entre o produto no disco e as imagens no formato necessário)
-    #   - abre o produto
-    #   - .load()
-    #   - .bands (dictionary of bands)
-    #   - .masks (dictionary of masks)
-    #   - if Batch o DWImage vai pegar com DWLoader.Pop() e processar
-    #       - na verdade o Pop faz o load da fila
-    #   -
-    # DWImage
-    #   -

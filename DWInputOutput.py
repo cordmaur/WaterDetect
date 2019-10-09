@@ -19,6 +19,10 @@ class DWutils:
         :param is_dir: whether if it is a directory or a file
         :return: Path type variable
         """
+
+        if path_str is None:
+            return None
+
         path = Path(path_str)
 
         if is_dir:
@@ -174,9 +178,11 @@ class DWutils:
 
 
 class DWLoader:
-    dicS2BandNames = {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12', 'Nir': 'B8', 'Nir2': 'B8A'}
+    dicS2BandNames = {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
+                      'Nir': 'B8', 'Nir2': 'B8A'}
     dicL8USGSBandNames = {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}
-    dicOtherBandNames = {'Green': 'band3', 'Red': 'band4', 'Mir': 'band6', 'Nir': 'band5'}
+    dicOtherBandNames = {'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
+                         'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'}
 
     def __init__(self, input_folder, shape_file, product):
 
@@ -232,10 +238,16 @@ class DWLoader:
             # get flat reflectance bands in a list
             bands = [file for file in self.current_image().iterdir() if
                      file .suffix == '.tif' and 'FRE' in file.stem]
-            for b in bands:
-                print(b.stem)
+
+        elif self.product == 'LANDSAT8':
+            bands = [file for file in self.current_image().iterdir() if
+                     file .suffix == '.tif' and 'sr_band' in file.stem]
         else:
             bands = None
+
+        if bands:
+            for b in bands:
+                print(b.stem)
 
         return bands
 
@@ -351,7 +363,7 @@ class DWLoader:
                 raster_band = gdal_img.ReadAsArray(buf_xsize=x_size, buf_ysize=y_size).astype(dtype=np.float32) / 10000
                 self.raster_bands.update({band: raster_band})
 
-                self.invalid_mask |= raster_band == -9999
+                self.invalid_mask |= raster_band == -0.9999
 
         return self.raster_bands
 
@@ -374,6 +386,13 @@ class DWSaver:
 
         return
 
+    def update_geo_transform(self, geo_transform, projection):
+
+        self.geo_transform = geo_transform
+        self.projection = projection
+
+        return
+
     @staticmethod
     def create_output_folder(output_folder, image_name, area_name):
         if not area_name:
@@ -381,7 +400,7 @@ class DWSaver:
         else:
             output_folder = output_folder.joinpath(area_name).joinpath(image_name)
 
-        output_folder.mkdir(exist_ok=True)
+        output_folder.mkdir(parents=True, exist_ok=True)
 
         return output_folder
 

@@ -97,7 +97,7 @@ class DWImageClustering:
         self.check_option_key(options, 'clustering', 'aglomerative')
         self.check_option_key(options, 'min_clusters', 2)
         self.check_option_key(options, 'max_clusters', 5)
-        self.check_option_key(options, 'clip_mir2', 0.05)
+        self.check_option_key(options, 'clip_mir2', 0.1)
         self.check_option_key(options, 'classifier', 'naive_bayes')
         self.check_option_key(options, 'train_size', 0.1)
         self.check_option_key(options, 'min_train_size', 1000)
@@ -488,9 +488,6 @@ class DWImageClustering:
         return self.cluster_matrix
 
 # todo: fazer a rotina ficar genrica para as bandas do machine learning
-# todo: carregar apenas as bandas que forem ser utilizadas
 # todo: deixar o train_data para poder fazer um gráfico mais rápido depois???
-# todo: fazer o clipping pelo shape
-# todo: fazer a leitura do Landsat8
 # todo: usar o conceito de driver para o Landsat e Theia
 # todo: criar um config ou passar os options para o wrapper
