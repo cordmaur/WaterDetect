@@ -26,7 +26,6 @@ Created on:     Fri Nov 23 10:30:20 2018
 # from StatisticsCalculation import CalculateStatistics2
 
 from DWInputOutput import DWutils, DWSaver, DWLoader
-from pathlib import Path
 import DWImage
 
 
@@ -48,21 +47,18 @@ class WaterDetect:
 
         # bands_graphs are the bands combinations to generate the graphs
         self.bands_graphs = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
+
+        # sets the reference band for resolution and projections
+        self.ref_band = 'Red'
+
+        # indicate if it is necessary to create a composite output of the area
         self.create_composite = True
 
         # create a Loader for the product
         self.loader = DWLoader(input_folder, shape_file, product)
 
-        # stores the output folder
-        self.output_folder = DWutils.check_path(output_folder, is_dir=True)
-
-        #
-        self.product = product
-
-        if shape_file:
-            self.area_name = Path(shape_file).name.split('.')[-2]
-        else:
-            self.area_name = None
+        # create a saver object
+        self.saver = DWSaver(output_folder, product, self.loader.area_name)
 
         return
 
@@ -91,17 +87,38 @@ class WaterDetect:
 
         return masks
 
-    def necessary_bands(self, ref_band):
+    def necessary_bands(self, include_rgb):
 
-        if self.create_composite:
-            necessary_bands = {'Red', 'Green', 'Blue', 'Nir', 'Mir2', ref_band}
-        else:
-            necessary_bands = set(ref_band)
+        # initialize with basic bands for MNDWI and NDWI
+        necessary_bands = {'Green', 'Nir', 'Mir2'}
 
-        necessary_bands = necessary_bands.union(set([item for sublist in self.bands_cluster for item in sublist]))
-        necessary_bands = necessary_bands.union(set([item for sublist in self.bands_graphs for item in sublist]))
+        if include_rgb:
+            necessary_bands = necessary_bands.union({'Red', 'Green', 'Blue', self.ref_band})
+
+        bands_cluster_set = [item for sublist in self.bands_cluster for item in sublist]
+        bands_graphs_set = [item for sublist in self.bands_graphs for item in sublist]
+
+        necessary_bands = necessary_bands.union(bands_cluster_set).union(bands_graphs_set)
 
         return list(necessary_bands)
+
+    def calc_index(self, index_name, band1, band2, bands_dict=None):
+        """
+        Calculates a normalized difference index, adds it to the bands dict and update the mask in loader
+        :param index_name: name of index to be used as key in the dictionary
+        :param band1: first band to be used in the normalized difference
+        :param band2: second band to be used in the normalized difference
+        :param bands_dict: dictionary of the bands
+        :return: index array
+        """
+
+        index, mask = DWutils.calc_normalized_difference(band1, band2)
+        self.loader.update_mask(mask)
+
+        if bands_dict:
+            bands_dict.update({index_name: index})
+
+        return index
 
     def run(self):
 
@@ -110,35 +127,32 @@ class WaterDetect:
             image = self.loader
 
             # open image into DWLoader class, passing the reference band
-            image.open_image(ref_band_name='Red')
+            image.open_image(ref_band_name=self.ref_band)
 
-            saver = DWSaver(self.output_folder, image.name(), image.product,
-                            image.get_geo_transform(), image.get_projection(), self.area_name)
+            self.saver.set_output_image(image.name, image.geo_transform, image.projection)
 
             if image.shape_file:
-                image.clip_bands(self.necessary_bands('Red'), 'Red', saver.temp_dir)
-                saver.update_geo_transform(image.get_geo_transform(), image.get_projection())
+                image.clip_bands(self.necessary_bands(self.create_composite), self.ref_band, self.saver.temp_dir)
+                self.saver.update_geo_transform(image.geo_transform, image.projection)
 
             if self.create_composite:
-                DWutils.create_composite(image.gdal_bands, saver.output_folder)
+                DWutils.create_composite(image.gdal_bands, self.saver.output_folder)
 
-            bands = image.load_raster_bands(['Green', 'Mir2', 'Nir'])
+            # Load necessary bands in memory
+            raster_bands = image.load_raster_bands(self.necessary_bands(False))
 
-            # calculate the MNDWI mask and saves it
-            mndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Mir2'])
-            image.update_mask(mask)
-            bands.update({'mndwi': mndwi})
+            image.load_masks()
 
-            # calculate the NDWI mask and saves it
-            ndwi, mask = DWutils.calc_normalized_difference(bands['Green'], bands['Nir'])
-            image.update_mask(mask)
-            bands.update({'ndwi': ndwi})
+            # calculate the MNDWI, update the mask and saves it
+            mndwi = self.calc_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], raster_bands)
+            self.saver.save_array(mndwi, image.name + '_MNDWI')
 
-            saver.save_array(ndwi, image.name() + '_NDWI')
-            saver.save_array(mndwi, image.name() + '_MNDWI')
+            # calculate the NDWI update the mask and saves it
+            ndwi = self.calc_index('ndwi', raster_bands['Green'], raster_bands['Nir'], raster_bands)
+            self.saver.save_array(ndwi, image.name + '_NDWI')
 
             # save the mask
-            saver.save_array(image.invalid_mask, image.name() + '_invalid_mask')
+            self.saver.save_array(image.invalid_mask, image.name + '_invalid_mask')
 
             # if bands_keys is not a list of lists, transform it
             if type(self.bands_cluster[0]) == str:
@@ -147,29 +161,29 @@ class WaterDetect:
             # loop through the bands combinations to make the clusters
             for band_combination in self.bands_cluster:
 
-                image.load_raster_bands(band_combination)
-
                 print('Calculating cluster for the following combination of bands:')
                 print(band_combination)
 
                 # create the clustering image
-                dw_image = DWImage.DWImageClustering(bands, band_combination, image.invalid_mask, {})
+                dw_image = DWImage.DWImageClustering(raster_bands, band_combination, image.invalid_mask, {})
                 matrice_cluster = dw_image.run_detect_water()
 
                 # prepare the base product name based on algorithm and bands, to create the directory
-                product_name = dw_image.create_product_name()
+                cluster_product_name = dw_image.create_product_name()
 
                 # save the water mask and the clustering results
-                # saver.save_array(bands['Green'], 'water_mask', opt_relative_path=product_name)
-                saver.save_array(dw_image.water_mask, product_name + '_water_mask', opt_relative_path=product_name)
-                saver.save_array(dw_image.cluster_matrix, product_name + '_clusters', opt_relative_path=product_name)
+                self.saver.save_array(dw_image.water_mask, cluster_product_name + '_water_mask',
+                                      opt_relative_path=cluster_product_name)
+                self.saver.save_array(dw_image.cluster_matrix, cluster_product_name + '_clusters',
+                                      opt_relative_path=cluster_product_name)
 
                 # unload bands
 
                 # plot the graphs specified in graph_bands
-                graph_basename = saver.output_folder.joinpath(product_name).joinpath(saver.base_name + product_name)\
-                    .as_posix()
-                DWutils.plot_graphs(bands, self.bands_graphs, matrice_cluster,
+                graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
+                    .joinpath(self.saver.base_name + cluster_product_name).as_posix()
+
+                DWutils.plot_graphs(raster_bands, self.bands_graphs, matrice_cluster,
                                     graph_basename, image.invalid_mask, 1000)
 
             # Test if there is enough valid pixels in the clipped images

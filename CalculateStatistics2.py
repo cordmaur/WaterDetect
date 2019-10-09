@@ -93,10 +93,10 @@ def Treat_files(band_clip, mask_clip, Download, Temp_name, shp_name):
 
     # Load the masks (theia S2)
     # All these masks have true in the INVALID pixels
-    # cloud_mask = getTheiaCloudMask(mask_clip[0][0], clouds=True, shadows=True, x_size=x_size, y_size=y_size)
-    # nodata_mask = getTheiaEDGMask(mask_clip[0][1], x_size=x_size, y_size=y_size)
-    # mg2_mask = getTheiaMG2Mask(mask_clip[0][2], x_size=x_size, y_size=y_size)
-    # sat_mask = getTheiaSatMask(mask_clip[0][3], x_size=x_size, y_size=y_size)
+    cloud_mask = getTheiaCloudMask(mask_clip[0][0], clouds=True, shadows=True, x_size=x_size, y_size=y_size)
+    nodata_mask = getTheiaEDGMask(mask_clip[0][1], x_size=x_size, y_size=y_size)
+    mg2_mask = getTheiaMG2Mask(mask_clip[0][2], x_size=x_size, y_size=y_size)
+    sat_mask = getTheiaSatMask(mask_clip[0][3], x_size=x_size, y_size=y_size)
 
     # Create a invalid combined mask excluding the no data pixels in ALL BANDS
     # invalid_mask = cloud_mask | nodata_mask | mg2_mask | sat_mask

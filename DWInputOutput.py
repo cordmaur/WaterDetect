@@ -9,8 +9,26 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+theia_cloud_mask = {'all_clouds_and_shadows': 1 << 0,
+                    'all_clouds': 1 << 1,
+                    'clouds_blue_band': 1 << 2,
+                    'clouds_multi_temporal': 1 << 3,
+                    'cirrus': 1 << 4,
+                    'cloud_shadows': 1 << 5,
+                    'other_shadows': 1 << 6,
+                    'high_clouds:': 1 << 7}
+
 
 class DWutils:
+
+    @staticmethod
+    def bitwise_or(array, bit_values):
+        return np.bitwise_or(array, bit_values)
+
+    @staticmethod
+    def bitwise_and(array, bit_values):
+        return np.bitwise_and(array, bit_values)
+
     @staticmethod
     def check_path(path_str, is_dir=False):
         """
@@ -63,10 +81,10 @@ class DWutils:
         rows = array.shape[0]
 
         driver = gdal.GetDriverByName('GTiff')
-        outRaster = driver.Create(filename, cols, rows, 1, gdal.GDT_Float32)
-        outRaster.SetGeoTransform(geo_transform)
-        outRaster.SetProjection(projection)
-        outband = outRaster.GetRasterBand(1)
+        out_raster = driver.Create(filename, cols, rows, 1, gdal.GDT_Float32)
+        out_raster.SetGeoTransform(geo_transform)
+        out_raster.SetProjection(projection)
+        outband = out_raster.GetRasterBand(1)
         outband.SetNoDataValue(nodatavalue)
         outband.WriteArray(array)
         outband.FlushCache()
@@ -77,7 +95,10 @@ class DWutils:
     def get_train_test_data(data, train_size, min_train_size, max_train_size):
         """
         Split the provided data in train-test bunches
-        :param data: data to be splited
+        :param min_train_size: minimum data quantity for train set
+        :param max_train_size: maximum data quantity for train set
+        :param train_size: percentage of the data to be used as train dataset
+        :param data: data to be split
         :return: train and test datasets
         """
         dataset_size = data.shape[0]
@@ -116,14 +137,14 @@ class DWutils:
             ax1.set_ylabel(graph_options['y_label'])
             ax1.set_title(graph_options['title'])
 
-            ax1.plot(cluster_i[:, 0], cluster_i[:, 1], '.', label=label, c= colorname)
+            ax1.plot(cluster_i[:, 0], cluster_i[:, 1], '.', label=label, c=colorname)
 
         handles, labels = ax1.get_legend_handles_labels()
         ax1.legend(handles, labels)
 
         plt.savefig(file_name + '.png')
 
-        #plt.show()
+        # plt.show()
         plt.close()
 
         return
@@ -209,6 +230,9 @@ class DWLoader:
         # mask with the invalid pixels
         self.invalid_mask = False
 
+        # temporary directory for clipping bands
+        self.temp_dir = None
+
         return
 
     def __iter__(self):
@@ -223,10 +247,25 @@ class DWLoader:
         self._index += 1
         return self
 
+    @property
+    def area_name(self):
+        """
+        Extracts the name of the area based on the shapefile name
+        :return: name of the area
+        """
+
+        # if self.shape_file:
+        #     return self.shape_file.name.split('.')[-2]
+        # else:
+        #     return None
+
+        return self.shape_file.stem
+
     def current_image(self):
 
         return self.images[self._index]
 
+    @property
     def name(self):
 
         return self.current_image().stem
@@ -292,16 +331,20 @@ class DWLoader:
                 band_names = self.dicOtherBandNames
         return band_names
 
-    def get_projection(self):
+    @property
+    def projection(self):
         return self._ref_band.GetProjection()
 
-    def get_geo_transform(self):
+    @property
+    def geo_transform(self):
         return self._ref_band.GetGeoTransform()
 
-    def get_x_size(self):
+    @property
+    def x_size(self):
         return self._ref_band.RasterXSize
 
-    def get_y_size(self):
+    @property
+    def y_size(self):
         return self._ref_band.RasterYSize
 
     @staticmethod
@@ -332,7 +375,6 @@ class DWLoader:
         opt = gdal.WarpOptions(cutlineDSName=self.shape_file, cropToCutline=True,
                                srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Float32)
 
-
         for band in bands_to_clip:
             if band not in self._clipped_gdal_bands and band in self.gdal_bands:
 
@@ -344,6 +386,7 @@ class DWLoader:
                 self.gdal_bands[band].FlushCache()
 
         self._ref_band = self.gdal_bands[ref_band]
+        self.temp_dir = temp_dir
 
         return
 
@@ -352,15 +395,14 @@ class DWLoader:
         if len(self.gdal_bands) == 0:
             raise OSError('Dataset not opened or no bands available')
 
-        x_size, y_size = self.get_x_size(), self.get_y_size()
-
         for band in bands_list:
 
             if band not in self.raster_bands and band in self.gdal_bands:
 
                 gdal_img = self.gdal_bands[band]
 
-                raster_band = gdal_img.ReadAsArray(buf_xsize=x_size, buf_ysize=y_size).astype(dtype=np.float32) / 10000
+                raster_band = gdal_img.ReadAsArray(buf_xsize=self.x_size,
+                                                   buf_ysize=self.y_size).astype(dtype=np.float32) / 10000
                 self.raster_bands.update({band: raster_band})
 
                 self.invalid_mask |= raster_band == -0.9999
@@ -372,17 +414,119 @@ class DWLoader:
 
         return self.invalid_mask
 
+    def load_masks(self):
+
+        new_mask = False
+
+        if self.product == 'S2_THEIA':
+            mask_folder = self.current_image()/'MASKS'
+            cloud_mask_file = [file for file in mask_folder.glob('*_CLM_R1.tif')][0]
+
+            cloud_mask_ds = gdal.Open(cloud_mask_file.as_posix())
+
+            # todo: make the clipping function generic to work with masks
+
+            # if there are clipped bands, we have to clip the masks as well
+            if self._clipped_gdal_bands:
+                opt = gdal.WarpOptions(cutlineDSName=self.shape_file, cropToCutline=True,
+                                       srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+
+                dest_name = (self.temp_dir/'CLM_R1.tif').as_posix()
+                cloud_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+                                          srcDSOrSrcDSTab=cloud_mask_ds,
+                                          options=opt)
+                cloud_mask_ds.FlushCache()
+
+            cloud_mask = cloud_mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
+
+            new_mask |= (cloud_mask == -9999)
+            new_mask |= (np.bitwise_and(cloud_mask, theia_cloud_mask['all_clouds_and_shadows']) != 0)
+
+            self.invalid_mask |= new_mask
+        return self.invalid_mask
+
+
+class DWTheiaMaskProcessor:
+
+    TheiaMaskDict = {'CLM': '*_CLM_R1.tif',
+                     'EDG': '*_EDG_R1.tif',
+                     'MG2': '*_MG2_R1.tif',
+                     'SAT1': '*_SAT_R1.tif',
+                     'SAT2': '*_SAT_R2.tif'}
+
+    def __init__(self, base_folder, shape_file=None, temp_dir=None):
+
+        self.masks_folder = Path(base_folder)/'MASKS'
+
+        self.gdal_masks = self.open_gdal_masks(shape_file, temp_dir)
+
+        return
+
+    def open_gdal_masks(self, shape_file, temp_dir):
+
+        gdal_masks = {}
+
+        for mask_key, mask_name in self.TheiaMaskDict:
+            mask_file = [file for file in self.masks_folder.glob(mask_name)][0]
+            gdal_masks.update({mask_key: gdal.Open(mask_file.as_posix())})
+
+        if shape_file:
+
+            opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
+                                   srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+
+            for mask_key, mask_ds in gdal_masks:
+                dest_name = (temp_dir / mask_key).as_posix()
+                clipped_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+                                            srcDSOrSrcDSTab=mask_ds,
+                                            options=opt)
+                clipped_mask_ds.FlushCache()
+                gdal_masks.update({mask_key: clipped_mask_ds})
+
+        return gdal_masks
+
 
 class DWSaver:
-    def __init__(self, output_folder, image_name, product_name, geo_transform, projection, area_name=None):
+    def __init__(self, output_folder, product_name, area_name=None):
 
-        self.output_folder = self.create_output_folder(output_folder, image_name, area_name)
-        self.base_name = product_name + '-' + image_name.split('_')[1]
+        # save the base output folder (root of all outputs)
+        self.base_output_folder = DWutils.check_path(output_folder, is_dir=True)
+
+        # save the product name
+        self.product_name = product_name
+
+        # save the name of the area
+        self.area_name = area_name
+
+        # initialize other objects variables
+        self._temp_dir = None
+        self.base_name = None
+        self.geo_transform = None
+        self.projection = None
+        self.output_folder = None
+
+        return
+
+    def set_output_image(self, image_name, geo_transform, projection):
+        """
+        For each image, the saver has to prepare the specific output directory, and saving parameters.
+        The output directory is based on the base_output_folder, the area name and the image name
+        :param image_name: name of the image being processed
+        :param geo_transform: geo transformation to save rasters
+        :param projection: projection to save rasters
+        :return: Nothing
+        """
+
+        self.output_folder = self.create_output_folder(self.base_output_folder,
+                                                       image_name,
+                                                       self.area_name)
+
+        self.base_name = self.create_base_name(self.product_name, image_name)
 
         self.geo_transform = geo_transform
         self.projection = projection
 
-        self._temp_dir = None
+        self.base_name = self.create_base_name(self.product_name, image_name)
 
         return
 
@@ -392,6 +536,10 @@ class DWSaver:
         self.projection = projection
 
         return
+
+    @staticmethod
+    def create_base_name(product_name, image_name):
+        return product_name + '-' + image_name.split('_')[1]
 
     @staticmethod
     def create_output_folder(output_folder, image_name, area_name):
