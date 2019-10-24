@@ -7,15 +7,16 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn.svm import LinearSVC
 from sklearn.grid_search import GridSearchCV
-from DWInputOutput import DWutils
+from DWInputOutput import DWutils, DWConfig
 
 
 class DWImageClustering:
 
-    def __init__(self, bands, bands_keys, invalid_mask=None, options=None):
+    def __init__(self, bands, bands_keys, invalid_mask, config: DWConfig):
 
         self.bands, self.bands_keys, self.invalid_mask = self.check_necessary_bands(bands, bands_keys, invalid_mask)
-        self.options = self.check_options(options)
+
+        self.config = config
 
         self.data_as_columns = None
         self.clusters_labels = None
@@ -82,7 +83,8 @@ class DWImageClustering:
 
         return
 
-    def check_options(self, options):
+    @staticmethod
+    def check_options(options):
         """
         Check if options dictionary has been passed to the class and save defaults otherwise
         :param options: received options
@@ -92,18 +94,18 @@ class DWImageClustering:
             options = {}
         else:
             if type(options) is not dict:
-                raise OSError('Options in cluster core is not a dictionary')
+                raise OSError('Options in clustering core is not a dictionary')
 
-        self.check_option_key(options, 'clustering', 'aglomerative')
-        self.check_option_key(options, 'min_clusters', 2)
-        self.check_option_key(options, 'max_clusters', 5)
-        self.check_option_key(options, 'clip_mir2', 0.1)
-        self.check_option_key(options, 'classifier', 'naive_bayes')
-        self.check_option_key(options, 'train_size', 0.1)
-        self.check_option_key(options, 'min_train_size', 1000)
-        self.check_option_key(options, 'max_train_size', 10000)
-        self.check_option_key(options, 'score_index', 'calinsk')
-        self.check_option_key(options, 'detectwatercluster', 'maxmndwi')
+        # self.check_option_key(options, 'clustering', 'aglomerative')
+        # self.check_option_key(options, 'min_clusters', 2)
+        # self.check_option_key(options, 'max_clusters', 2)
+        # self.check_option_key(options, 'clip_mir2', 0.1)
+        # self.check_option_key(options, 'classifier', 'naive_bayes')
+        # self.check_option_key(options, 'train_size', 0.1)
+        # self.check_option_key(options, 'min_train_size', 1000)
+        # self.check_option_key(options, 'max_train_size', 10000)
+        # self.check_option_key(options, 'score_index', 'calinsk')
+        # self.check_option_key(options, 'detectwatercluster', 'maxmndwi')
 
         return options
 
@@ -140,9 +142,9 @@ class DWImageClustering:
         # before calling the clustering function, normalize the data using min_max_scaler
         # scaled_data = preprocessing.minmax_scale(data)
 
-        if self.options['clustering'] == 'kmeans':
+        if self.config.clustering_method == 'kmeans':
             cluster_model = cluster.KMeans(n_clusters=self.best_k, init='k-means++')
-        elif self.options['clustering'] == 'gauss_mixture':
+        elif self.config.clustering_bands == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
             cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='ward')
@@ -159,13 +161,13 @@ class DWImageClustering:
         # # split data for a smaller set (for performance purposes)
         # train_data, test_data = getTrainTestDataset(data, train_size, min_train_size=1000)
 
-        if self.options['score_index'] == 'silhouete':
+        if self.config.score_index == 'silhouete':
             print('Selection of best number of clusters using Silhouete Index:')
         else:
             print('Selection of best number of clusters using Calinski-Harabasz Index:')
 
-        min_k = self.options['min_clusters']
-        max_k = self.options['max_clusters']
+        min_k = self.config.min_clusters
+        max_k = self.config.max_clusters
 
         computed_metrics = []
 
@@ -175,7 +177,7 @@ class DWImageClustering:
 
             labels = cluster_model.fit_predict(data)
 
-            if self.options['score_index'] == 'silhouete':
+            if self.config.score_index == 'silhouete':
                 computed_metrics.append(metrics.silhouette_score(data, labels))
                 print('k={} :Silhouete index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
@@ -216,20 +218,21 @@ class DWImageClustering:
         It can be done using MNDWI or Mir2 bands
         :return: water cluster object
         """
-        if self.options['detectwatercluster'] == 'maxmndwi':
+
+        if self.config.detect_water_cluster == 'maxmndwi':
             if 'mndwi' not in self.bands.keys():
                 raise OSError('MNDWI band necessary for detecting water with maxmndwi option')
 
             water_cluster = self.detect_cluster('value', 'max', 'mndwi')
 
-        elif self.options['detectwatercluster'] == 'minmir2':
+        elif self.config.detect_water_cluster == 'minmir2':
             if 'mndwi' not in self.bands.keys():
                 raise OSError('Mir2 band necessary for detecting water with minmir2 option')
             water_cluster = self.detect_cluster('value', 'min', 'Mir2')
 
         else:
             raise OSError('Method {} for detecting water cluster does not exist'.
-                          format(self.options['detectwatercluster']))
+                          format(self.config.detect_water_cluster))
 
         return water_cluster
 
@@ -278,9 +281,9 @@ class DWImageClustering:
         :param clusters_labels: labels for the reference data
         :return: labels for the new data
         """
-        if self.options['classifier'] == 'SVM':
+        if self.config == 'SVM':
             clusters_labels = self.apply_svm(data, clusters_labels, train_data)
-        elif self.options['classifier'] == 'MLP':
+        elif self.config.classifier == 'MLP':
             clusters_labels = self.apply_mlp(data, clusters_labels, train_data)
         else:
             clusters_labels = self.apply_naive_bayes(data, clusters_labels, train_data)
@@ -392,9 +395,9 @@ class DWImageClustering:
 
     def create_product_name(self):
 
-        clustering = self.options['clustering']
-        classifier = self.options['classifier']
-        clip_mir2 = self.options['clip_mir2']
+        clustering = self.config.clustering_method
+        classifier = self.config.classifier
+        clip_band = self.config.clip_band
 
         if clustering == 'aglomerative':
             product_name = 'AC_'
@@ -416,7 +419,7 @@ class DWImageClustering:
         else:
             product_name += 'ERROR_'
 
-        if clip_mir2:
+        if clip_band:
             product_name += 'CM_'
         for key in self.bands_keys:
             product_name += str(key)
@@ -426,14 +429,14 @@ class DWImageClustering:
     ############################################################################
     # MAIN run_detect_water function
     # -------------------------------------------------------------------------#
-    def run_detect_water(self, options=None):
+    def run_detect_water(self, config=None):
         """
         Runs the detect_water function
-        :param options: Options dictionary for the processing
+        :param config: Options dictionary for the processing
         :return: clustered matrix where 1= water
         """
         # if passed options, override the existing options
-        self.options = self.check_options(options) if options else self.options
+        self.config = config if type(config) == DWConfig else self.config
 
         # Transform the rasters in a matrix where each band is a column
         self.data_as_columns = self.bands_to_columns()
@@ -442,14 +445,14 @@ class DWImageClustering:
         ind_data = np.where(~self.invalid_mask)
 
         # if algorithm is not kmeans, split data for a smaller set (for performance purposes)
-        if self.options['clustering'] == 'kmeans':
+        if self.config.clustering_method == 'kmeans':
             train_data_as_columns = self.data_as_columns
         else:
             # original train data keeps all the bands
             train_data_as_columns, _ = DWutils.get_train_test_data(self.data_as_columns,
-                                                                   self.options['train_size'],
-                                                                   self.options['min_train_size'],
-                                                                   self.options['max_train_size'])
+                                                                   self.config.train_size,
+                                                                   self.config.min_train_size,
+                                                                   self.config.max_train_size)
 
         # create data bunch only with the bands used for clustering
         split_train_data_as_columns = self.split_data_by_bands(train_data_as_columns, self.bands_keys)
@@ -469,7 +472,7 @@ class DWImageClustering:
 
         # if we are dealing with aglomerative cluster or other diff from kmeans, we have only a sample of labels
         # we need to recreate labels for all the points using supervised classification
-        if self.options['clustering'] != 'kmeans':
+        if self.config.clustering_method != 'kmeans':
             self.clusters_labels = self.supervised_classification(split_data_as_columns,
                                                                   split_train_data_as_columns,
                                                                   train_clusters_labels)
@@ -477,9 +480,9 @@ class DWImageClustering:
             self.clusters_labels = train_clusters_labels
 
         # after obtaining the final labels, if clip MIR is not None, clip MIR above threshold
-        if self.options['clip_mir2']:
+        if self.config.clip_value:
             self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &
-                                 (self.bands['Mir2'][~self.invalid_mask] > self.options['clip_mir2'])] = -1
+                                 (self.bands[self.config.clip_band][~self.invalid_mask] > self.config.clip_value)] = -1
 
         # create an cluster array based on the cluster result (water will be value 1)
         self.cluster_matrix = self.create_matrice_cluster(ind_data)

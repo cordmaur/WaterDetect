@@ -8,15 +8,114 @@ from shutil import copy
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import configparser
+import ast
 
-theia_cloud_mask = {'all_clouds_and_shadows': 1 << 0,
-                    'all_clouds': 1 << 1,
-                    'clouds_blue_band': 1 << 2,
-                    'clouds_multi_temporal': 1 << 3,
-                    'cirrus': 1 << 4,
-                    'cloud_shadows': 1 << 5,
-                    'other_shadows': 1 << 6,
-                    'high_clouds:': 1 << 7}
+
+class DWConfig:
+
+    def __init__(self, config_file=None):
+
+        self.config = self.load_config_file(config_file)
+
+        return
+
+    @staticmethod
+    def load_config_file(config_file=None):
+
+        if not config_file:
+            config_file = 'WaterDetect.ini'
+
+        print('Loading configuration file {}'.format(config_file))
+        DWutils.check_path(config_file)
+
+        config = configparser.ConfigParser()
+        config.read('WaterDetect.ini')
+
+        return config
+
+    @property
+    def reference_band(self):
+        return self.config.get('General', 'reference_band')
+
+    @property
+    def create_composite(self):
+        return ast.literal_eval(self.config.get('General', 'create_composite'))
+
+    @property
+    def clustering_method(self):
+        return self.config.get('Clustering', 'clustering_method')
+
+    @property
+    def train_size(self):
+        return ast.literal_eval(self.config.get('Clustering', 'train_size'))
+
+    @property
+    def min_train_size(self):
+        return ast.literal_eval(self.config.get('Clustering', 'min_train_size'))
+
+    @property
+    def max_train_size(self):
+        return ast.literal_eval(self.config.get('Clustering', 'max_train_size'))
+
+    @property
+    def clip_band(self):
+        band = self.config.get('Clustering', 'clip_band')
+
+        if band == 'None' or band == 'none' or band == '':
+            return None
+        else:
+            return band
+
+    @property
+    def clip_value(self):
+        return ast.literal_eval(self.config.get('Clustering', 'clip_value'))
+
+    @property
+    def score_index(self):
+        return self.config.get('Clustering', 'score_index')
+
+    @property
+    def classifier(self):
+        return self.config.get('Clustering', 'classifier')
+
+    @property
+    def detect_water_cluster(self):
+        return self.config.get('Clustering', 'detectwatercluster')
+
+    @property
+    def min_clusters(self):
+        return ast.literal_eval(self.config.get('Clustering', 'min_clusters'))
+
+    @property
+    def max_clusters(self):
+        return ast.literal_eval(self.config.get('Clustering', 'max_clusters'))
+
+    @property
+    def graphs_bands(self):
+
+        bands_str = self.config.get('Graphs', 'graphs_bands')
+
+        bands_lst = ast.literal_eval(bands_str)
+
+        # if bands_keys is not a list of lists, transform it
+        if type(bands_lst[0]) == str:
+            bands_lst = [bands_lst]
+
+        return bands_lst
+
+    @property
+    def clustering_bands(self):
+
+        bands_str = self.config.get('Clustering', 'clustering_bands')
+
+        bands_lst = ast.literal_eval(bands_str)
+
+        # if bands_keys is not a list of lists, transform it
+        if type(bands_lst[0]) == str:
+            bands_lst = [bands_lst]
+
+        return bands_lst
 
 
 class DWutils:
@@ -201,7 +300,12 @@ class DWutils:
 class DWLoader:
     dicS2BandNames = {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
                       'Nir': 'B8', 'Nir2': 'B8A'}
+
+    dicSen2CorBandNames = {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
+                           'Nir': 'B08', 'Nir2': 'B8A'}
+
     dicL8USGSBandNames = {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}
+
     dicOtherBandNames = {'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
                          'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'}
 
@@ -254,12 +358,10 @@ class DWLoader:
         :return: name of the area
         """
 
-        # if self.shape_file:
-        #     return self.shape_file.name.split('.')[-2]
-        # else:
-        #     return None
-
-        return self.shape_file.stem
+        if self.shape_file:
+            return self.shape_file.stem
+        else:
+            return None
 
     def current_image(self):
 
@@ -281,6 +383,10 @@ class DWLoader:
         elif self.product == 'LANDSAT8':
             bands = [file for file in self.current_image().iterdir() if
                      file .suffix == '.tif' and 'sr_band' in file.stem]
+
+        elif self.product == 'SEN2COR':
+            bands = [file for file in self.current_image().iterdir() if
+                     file .suffix == '.jp2' and ('_20m' in file.stem or '_10m' in file.stem)]
         else:
             bands = None
 
@@ -290,7 +396,7 @@ class DWLoader:
 
         return bands
 
-    def open_image(self, ref_band_name='Red'):
+    def open_current_image(self, ref_band_name='Red'):
         """
         Load a bands list, given a image_list and a dictionary of Keys(BandName) and identifiers to parse the filename
         ex. {'Green':'B3', 'Red':'B4'...}
@@ -327,6 +433,8 @@ class DWLoader:
                 band_names = self.dicL8USGSBandNames
             elif self.product in ["S2_PEPS", "S2_S2COR", "S2_THEIA", "S2_L2H"]:
                 band_names = self.dicS2BandNames
+            elif self.product in ["SEN2COR"]:
+                band_names = self.dicSen2CorBandNames
             else:
                 band_names = self.dicOtherBandNames
         return band_names
@@ -355,6 +463,7 @@ class DWLoader:
         If cant find the band return None
         If is more than 1 image, raise exception
         """
+        # todo: the desired band depends on the product
         desired_band = '_' + desired_band + '.'
         image_band = list(filter(lambda x: desired_band in os.path.split(x)[-1], bands_list))
 
@@ -416,74 +525,43 @@ class DWLoader:
 
     def load_masks(self):
 
-        new_mask = False
-
+        mask_processor = None
         if self.product == 'S2_THEIA':
-            mask_folder = self.current_image()/'MASKS'
-            cloud_mask_file = [file for file in mask_folder.glob('*_CLM_R1.tif')][0]
+            mask_processor = DWTheiaMaskProcessor(self.current_image(), self.x_size, self.y_size,
+                                                  self.shape_file, self.temp_dir)
+        elif self.product == 'LANDSAT8':
+            mask_processor = DWTheiaMaskProcessor(self.current_image(), self.x_size, self.y_size,
+                                                  self.shape_file, self.temp_dir)
 
-            cloud_mask_ds = gdal.Open(cloud_mask_file.as_posix())
+        if mask_processor:
+            self.update_mask(mask_processor.get_combined_masks())
 
-            # todo: make the clipping function generic to work with masks
+        # if self.product == 'S2_THEIA':
+        #     mask_folder = self.current_image()/'MASKS'
+        #     cloud_mask_file = [file for file in mask_folder.glob('*_CLM_R1.tif')][0]
+        #
+        #     cloud_mask_ds = gdal.Open(cloud_mask_file.as_posix())
+        #
+        #     # todo: make the clipping function generic to work with masks
+        #
+        #     # if there are clipped bands, we have to clip the masks as well
+        #     if self._clipped_gdal_bands:
+        #         opt = gdal.WarpOptions(cutlineDSName=self.shape_file, cropToCutline=True,
+        #                                srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+        #
+        #         dest_name = (self.temp_dir/'CLM_R1.tif').as_posix()
+        #         cloud_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+        #                                   srcDSOrSrcDSTab=cloud_mask_ds,
+        #                                   options=opt)
+        #         cloud_mask_ds.FlushCache()
+        #
+        #     cloud_mask = cloud_mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
+        #
+        #     new_mask |= (cloud_mask == -9999)
+        #     new_mask |= (np.bitwise_and(cloud_mask, theia_cloud_mask['all_clouds_and_shadows']) != 0)
+        #
 
-            # if there are clipped bands, we have to clip the masks as well
-            if self._clipped_gdal_bands:
-                opt = gdal.WarpOptions(cutlineDSName=self.shape_file, cropToCutline=True,
-                                       srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
-
-                dest_name = (self.temp_dir/'CLM_R1.tif').as_posix()
-                cloud_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
-                                          srcDSOrSrcDSTab=cloud_mask_ds,
-                                          options=opt)
-                cloud_mask_ds.FlushCache()
-
-            cloud_mask = cloud_mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
-
-            new_mask |= (cloud_mask == -9999)
-            new_mask |= (np.bitwise_and(cloud_mask, theia_cloud_mask['all_clouds_and_shadows']) != 0)
-
-            self.invalid_mask |= new_mask
         return self.invalid_mask
-
-
-class DWTheiaMaskProcessor:
-
-    TheiaMaskDict = {'CLM': '*_CLM_R1.tif',
-                     'EDG': '*_EDG_R1.tif',
-                     'MG2': '*_MG2_R1.tif',
-                     'SAT1': '*_SAT_R1.tif',
-                     'SAT2': '*_SAT_R2.tif'}
-
-    def __init__(self, base_folder, shape_file=None, temp_dir=None):
-
-        self.masks_folder = Path(base_folder)/'MASKS'
-
-        self.gdal_masks = self.open_gdal_masks(shape_file, temp_dir)
-
-        return
-
-    def open_gdal_masks(self, shape_file, temp_dir):
-
-        gdal_masks = {}
-
-        for mask_key, mask_name in self.TheiaMaskDict:
-            mask_file = [file for file in self.masks_folder.glob(mask_name)][0]
-            gdal_masks.update({mask_key: gdal.Open(mask_file.as_posix())})
-
-        if shape_file:
-
-            opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
-                                   srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
-
-            for mask_key, mask_ds in gdal_masks:
-                dest_name = (temp_dir / mask_key).as_posix()
-                clipped_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
-                                            srcDSOrSrcDSTab=mask_ds,
-                                            options=opt)
-                clipped_mask_ds.FlushCache()
-                gdal_masks.update({mask_key: clipped_mask_ds})
-
-        return gdal_masks
 
 
 class DWSaver:
@@ -568,7 +646,119 @@ class DWSaver:
     def temp_dir(self):
 
         if not self._temp_dir:
-            self._temp_dir = self.output_folder/'temp_dir'
+            self._temp_dir = self.output_folder / 'temp_dir'
             self._temp_dir.mkdir(exist_ok=True)
 
         return self._temp_dir
+
+
+class DWTheiaMaskProcessor:
+
+    TheiaMaskDict = {'CLM': '*_CLM_R2.tif',
+                     'EDG': '*_EDG_R2.tif',
+                     'MG2': '*_MG2_R2.tif',
+                     'SAT1': '*_SAT_R1.tif',
+                     'SAT2': '*_SAT_R2.tif'}
+
+    TheiaCLMDict = {'all_clouds_and_shadows': 1 << 0,
+                    'all_clouds': 1 << 1,
+                    'clouds_blue_band': 1 << 2,
+                    'clouds_multi_temporal': 1 << 3,
+                    'cirrus': 1 << 4,
+                    'cloud_shadows': 1 << 5,
+                    'other_shadows': 1 << 6,
+                    'high_clouds': 1 << 7}
+
+    TheiaMG2Dict = {'water': 1 << 0,
+                    'all_clouds': 1 << 1,
+                    'snow': 1 << 2,
+                    'cloud_shadows': 1 << 3,
+                    'other_shadows': 1 << 4,
+                    'terrain_mask': 1 << 5,
+                    'sun_too_low': 1 << 6,
+                    'sun_tangent': 1 << 7}
+
+    def __init__(self, base_folder, x_size, y_size, shape_file=None, temp_dir=None):
+
+        self.x_size = x_size
+        self.y_size = y_size
+
+        self.masks_folder = Path(base_folder)/'MASKS'
+
+        self.masks = self.open_masks(shape_file, temp_dir)
+
+
+        return
+
+    def open_masks(self, shape_file, temp_dir):
+
+        masks = {}
+        gdal_masks = self.open_gdal_masks(shape_file, temp_dir)
+
+        for mask_key, mask_ds in gdal_masks.items():
+            masks.update({mask_key: mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)})
+
+        return masks
+
+    def open_gdal_masks(self, shape_file, temp_dir):
+
+        gdal_masks = {}
+
+        for mask_key, mask_name in self.TheiaMaskDict.items():
+            mask_file = [file for file in self.masks_folder.glob(mask_name)][0]
+            gdal_masks.update({mask_key: gdal.Open(mask_file.as_posix())})
+
+        if shape_file:
+
+            opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
+                                   srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+
+            for mask_key, mask_ds in gdal_masks.items():
+                dest_name = (temp_dir / mask_key).as_posix()
+                clipped_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+                                            srcDSOrSrcDSTab=mask_ds,
+                                            options=opt)
+                clipped_mask_ds.FlushCache()
+                gdal_masks.update({mask_key: clipped_mask_ds})
+
+        return gdal_masks
+
+    def get_combined_masks(self):
+
+        # cloud_mask = np.bitwise_and(self.masks['CLM'], theia_cloud_mask['all_clouds_and_shadows']) != 0
+        cloud_mask = np.bitwise_and(self.masks['CLM'], self.TheiaCLMDict['all_clouds_and_shadows']) != 0
+
+        # take care of -9999 ?
+        edg_mask = self.masks['EDG'] != 0
+
+        # SAT
+        sat_mask = (self.masks['SAT1'] != 0) | (self.masks['SAT2'] != 0)
+
+        # MG2 masks out snow and other shadows
+        mg2_mask = np.bitwise_and(self.masks['MG2'],
+                                  self.TheiaMG2Dict['snow'] |
+                                  self.TheiaMG2Dict['other_shadows'] |
+                                  self.TheiaMG2Dict['terrain_mask']) != 0
+
+        # return cloud_mask | edg_mask | sat_mask | mg2_mask
+        return edg_mask
+
+# considering a bit mask like:
+# mask = 0_0_0_1_0_1_0_0   (bit2 = cloud, bit 4 = shadow)
+# if we want the pixels clear from any of the mask bits, we should perform bitwise_and == 0
+# pixel= 0_0_0_0_0_0_0_0 -> and = 0_0_0_0_0_0_0_0 (== 0 -> clear)
+# pixel= 0_1_0_1_0_1_0_1 -> and = 0_0_0_1_0_1_0_0 (!= 0 -> masked out)
+# pixel= 0_0_0_1_0_0_1_1 -> and = 0_0_0_1_0_0_0_0 (!= 0 -> masked out)
+
+# if we want the pixels clear from both mask bits at the same time, we do the same but
+# bitwise_and != MASK
+# mask = 0_0_0_1_0_1_0_0   (bit2 = cloud, bit 4 = shadow)
+# pixel= 0_1_0_1_0_1_0_1 -> and = 0_0_0_1_0_1_0_0 (== mask -> masked out)
+# pixel= 0_0_0_1_0_0_1_1 -> and = 0_0_0_1_0_0_0_0 (!= mask -> clear)
+
+# if we want the pixels masked by any of the mask bits we do bitwise_and != 0
+# mask = 0_0_0_1_0_1_0_0   (bit2 = cloud, bit 4 = shadow)
+# pixel= 0_0_0_0_0_0_0_0 -> and = 0_0_0_0_0_0_0_0 (== 0 -> not masked)
+# pixel= 0_1_0_1_0_1_0_1 -> and = 0_0_0_1_0_1_0_0 (!= 0 -> masked out)
+# pixel= 0_0_0_1_0_0_1_1 -> and = 0_0_0_1_0_0_0_0 (!= 0 -> masked out)
+
