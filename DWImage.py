@@ -7,7 +7,8 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn.svm import LinearSVC
 from sklearn.grid_search import GridSearchCV
-from DWInputOutput import DWutils, DWConfig
+from DWInputOutput import DWutils
+from DWCommon import DWConfig
 
 
 class DWImageClustering:
@@ -69,46 +70,6 @@ class DWImageClustering:
 
         return bands, bands_keys, invalid_mask
 
-    @staticmethod
-    def check_option_key(options, key, default_value):
-        """
-        Check if a specific option key is in dictionary. If it is not found, saves the default value
-        :param options: the options dictionary
-        :param key: key to be searched
-        :param default_value: default value to be stored
-        :return: Nothing
-        """
-        if key not in list(options.keys()):
-            options.update({key: default_value})
-
-        return
-
-    @staticmethod
-    def check_options(options):
-        """
-        Check if options dictionary has been passed to the class and save defaults otherwise
-        :param options: received options
-        :return: options dictionary or empty one
-        """
-        if not options:
-            options = {}
-        else:
-            if type(options) is not dict:
-                raise OSError('Options in clustering core is not a dictionary')
-
-        # self.check_option_key(options, 'clustering', 'aglomerative')
-        # self.check_option_key(options, 'min_clusters', 2)
-        # self.check_option_key(options, 'max_clusters', 2)
-        # self.check_option_key(options, 'clip_mir2', 0.1)
-        # self.check_option_key(options, 'classifier', 'naive_bayes')
-        # self.check_option_key(options, 'train_size', 0.1)
-        # self.check_option_key(options, 'min_train_size', 1000)
-        # self.check_option_key(options, 'max_train_size', 10000)
-        # self.check_option_key(options, 'score_index', 'calinsk')
-        # self.check_option_key(options, 'detectwatercluster', 'maxmndwi')
-
-        return options
-
     def bands_to_columns(self):
         """
         Convert self.bands to a column type matrix where each band is a column
@@ -154,20 +115,25 @@ class DWImageClustering:
 
     def find_best_k(self, data):
         """
-        Find the best number of clusters according to an matrics.
+        Find the best number of clusters according to an metrics.
         :param data: data to be tested
         :return: number of clusters
         """
         # # split data for a smaller set (for performance purposes)
         # train_data, test_data = getTrainTestDataset(data, train_size, min_train_size=1000)
 
+        min_k = self.config.min_clusters
+        max_k = self.config.max_clusters
+
+        if min_k == max_k:
+            print('Same number for minimum and maximum clusters: k = {}'.format(min_k))
+            self.best_k = min_k
+            return self.best_k
+
         if self.config.score_index == 'silhouete':
             print('Selection of best number of clusters using Silhouete Index:')
         else:
             print('Selection of best number of clusters using Calinski-Harabasz Index:')
-
-        min_k = self.config.min_clusters
-        max_k = self.config.max_clusters
 
         computed_metrics = []
 

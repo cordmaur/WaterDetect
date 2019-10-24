@@ -1,7 +1,8 @@
-from DWInputOutput import DWutils, DWSaver, DWLoader, DWConfig
+from DWInputOutput import DWSaver, DWLoader
+from DWCommon import DWConfig, DWutils
 import DWImage
 import numpy as np
-import ast
+
 
 
 class DWWaterDetect:
