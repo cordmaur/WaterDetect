@@ -151,6 +151,21 @@ class DWConfig:
 
         return bands_lst
 
+    def get_masks_list(self, product):
+
+        masks_lst = []
+
+        if product == 'LANDSAT8':
+            section_name = 'LandsatMasks'
+        else:
+            section_name = 'TheiaMasks'
+
+        for key in self.config._sections[section_name]:
+            if self.config.getboolean(section_name, key):
+                masks_lst.append(key)
+
+        return masks_lst
+
 
 class DWutils:
 
@@ -196,13 +211,13 @@ class DWutils:
         return [i for i in input_folder.iterdir() if i.is_dir()]
 
     @staticmethod
-    def calc_normalized_difference(img1, img2):
+    def calc_normalized_difference(img1, img2, mask=False):
         nd = (img1-img2) / (img1 + img2)
 
         nd[nd > 1] = 1
         nd[nd < -1] = -1
 
-        nd_mask = np.isinf(nd) | np.isnan(nd)
+        nd_mask = np.isinf(nd) | np.isnan(nd) | mask
         nd = np.ma.array(nd, mask=nd_mask, fill_value=-9999)
 
         return nd.filled(), nd.mask

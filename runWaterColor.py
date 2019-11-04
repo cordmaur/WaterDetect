@@ -26,18 +26,19 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--product", help='The product to be processed (S2_Theia, Landsat, etc.)',
                         default='S2_THEIA', type=str)
     parser.add_argument('-g', '--off_graphs', help='Turns off the scatter plot graphs', action='store_true')
+    parser.add_argument('-c', '--config', help='Configuration .ini file.', type=str)
 
     # product type (theia, sen2cor, landsat, etc.)
     # optional shape file
     # generate graphics (boolean)
     # name of config file with the bands-list for detecting, saving graphics, etc. If not specified, use default name
     #   if clip MIR or not, number of pixels to plot in graph, number of clusters, max pixels to process, etc.
-    # masks to be considered?!?!?
+    # name of the configuration .ini file (optional, default is WaterDetect.ini in the same folder
 
     args = parser.parse_args()
 
     water_detect = DWWaterDetect.DWWaterDetect(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
-                                               product=args.product)
+                                               product=args.product, config_file=args.config)
     water_detect.run()
 
 

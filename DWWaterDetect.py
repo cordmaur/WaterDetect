@@ -16,29 +16,16 @@ class DWWaterDetect:
     # ref_band = 'Red'
     # config = None  # Configurations loaded from WaterDetect.ini
 
-    def __init__(self, input_folder, output_folder, shape_file, product):
+    def __init__(self, input_folder, output_folder, shape_file, product, config_file):
 
-        # Load the configuration file (WaterDetect.ini)
-        # self.config = self.load_config_file()
-        self.config = DWConfig()
+        # Create the Configuration object.
+        # It loads the configuration file (WaterDetect.ini) and holds all the defaults if missing parameters
+        self.config = DWConfig(config_file=config_file)
 
-        # initialize some parameters
-        # bands_cluster are the bands combinations to use in the clustering algorithm
-        # self.bands_cluster = [['ndwi', 'mndwi']]
-
-        # bands_graphs are the bands combinations to generate the graphs
-        # self.bands_graphs = [['Mir2', 'mndwi'], ['ndwi', 'mndwi']]
-
-        # sets the reference band for resolution and projections
-        # self.ref_band = 'Red'
-
-        # indicate if it is necessary to create a composite output of the area
-        # self.create_composite = True
-
-        # create a Loader for the product
+        # Create a Loader for the product
         self.loader = DWLoader(input_folder, shape_file, product)
 
-        # create a saver object
+        # Create a saver object
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
 
         return
@@ -69,12 +56,17 @@ class DWWaterDetect:
         return masks
 
     def necessary_bands(self, include_rgb):
+        """
+        Return all the necessary bands, based on the bands used for the graphics and the clustering
+        :param include_rgb: Specifies if RGB bands are necessary for creating composite, for example
+        :return: All necessary bands in a list
+        """
 
         # initialize with basic bands for MNDWI and NDWI and MBWI
-        necessary_bands = {'Green', 'Red', 'Nir', 'Mir', 'Mir2'}
+        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir', 'Mir2', self.config.reference_band}
 
         if include_rgb:
-            necessary_bands = necessary_bands.union({'Red', 'Green', 'Blue', self.config.reference_band})
+            necessary_bands = necessary_bands.union({'Red', 'Green', 'Blue'})
 
         bands_cluster_set = [item for sublist in self.config.clustering_bands for item in sublist]
         bands_graphs_set = [item for sublist in self.config.graphs_bands for item in sublist]
@@ -83,9 +75,10 @@ class DWWaterDetect:
 
         return list(necessary_bands)
 
-    def calc_nd_index(self, index_name, band1, band2, bands_dict=None):
+    def calc_nd_index(self, index_name, band1, band2, save_index=False):
         """
         Calculates a normalized difference index, adds it to the bands dict and update the mask in loader
+        :param save_index: Inidicate if we should save this index to a raster image
         :param index_name: name of index to be used as key in the dictionary
         :param band1: first band to be used in the normalized difference
         :param band2: second band to be used in the normalized difference
@@ -93,26 +86,54 @@ class DWWaterDetect:
         :return: index array
         """
 
-        index, mask = DWutils.calc_normalized_difference(band1, band2)
+        index, mask = DWutils.calc_normalized_difference(band1, band2, self.loader.invalid_mask)
         self.loader.update_mask(mask)
 
-        if bands_dict:
-            bands_dict.update({index_name: index})
+        self.loader.raster_bands.update({index_name: index})
+
+        if save_index:
+            self.saver.save_array(index, self.loader.current_image_name + '_' + index_name)
 
         return index
 
-    def calc_mbwi(self, bands, factor=3):
-
+    def calc_mbwi(self, bands, factor=3, save_index=False):
+        """
+        Calculates the Multiband Water Index and adds it to the bands dictionary
+        :param bands: Bands dictionary with the raster bands
+        :param factor: Factor to multiply the Green band as proposed in the original paper
+        :return: mbwi array
+        """
         mbwi = factor * bands['Green'] - bands['Red'] - bands['Nir'] - bands['Mir'] - bands['Mir2']
 
-        mask = np.isinf(mbwi) | np.isnan(mbwi)
+        mask = np.isinf(mbwi) | np.isnan(mbwi) | self.loader.invalid_mask
         mbwi = np.ma.array(mbwi, mask=mask, fill_value=-9999)
 
         self.loader.update_mask(mask)
 
         bands.update({'mbwi': mbwi.filled()})
 
+        if save_index:
+            self.saver.save_array(mbwi.filled(), self.loader.current_image_name + '_mbwi')
+
         return mbwi.filled()
+
+    def calc_awei(self, bands, save_index=False):
+        """
+        Calculates the AWEI Water Index and adds it to the bands dictionary
+        :param bands: Bands dictionary with the raster bands
+        :return: mbwi array
+        """
+        awei = bands['Blue'] + 2.5*bands['Green'] - 1.5*(bands['Red'] + bands['Mir']) - 0.25*bands['Mir2']
+
+        mask = np.isinf(awei) | np.isnan(awei) | self.loader.invalid_mask
+        awei = np.ma.array(awei, mask=mask, fill_value=-9999)
+
+        self.loader.update_mask(mask)
+
+        bands.update({'awei': awei.filled()})
+
+
+        return awei.filled()
 
     def run(self):
 
@@ -123,11 +144,12 @@ class DWWaterDetect:
             # open image into DWLoader class, passing the reference band
             image.open_current_image(ref_band_name=self.config.reference_band)
 
-            self.saver.set_output_image(image.name, image.geo_transform, image.projection)
+            self.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
 
             # if there is a shape_file specified, make clipping of necessary bands and then update the output projection
             if image.shape_file:
-                image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band, self.saver.temp_dir)
+                image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
+                                 self.saver.temp_dir)
                 self.saver.update_geo_transform(image.geo_transform, image.projection)
 
             # create a composite R G B in the output folder
@@ -138,22 +160,31 @@ class DWWaterDetect:
             raster_bands = image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
             # todo: correct the masks
-            image.load_masks()
+            image.load_masks(self.config.get_masks_list(image.product))
+
+            # Test if there is enough valid pixels in the clipped images
+            if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > 0.8:
+                print('Not enough valid pixels in the image area')
+                continue
 
             # calculate the MNDWI, update the mask and saves it
-            mndwi = self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], raster_bands)
-            self.saver.save_array(mndwi, image.name + '_MNDWI')
+            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], save_index=True)
 
             # calculate the NDWI update the mask and saves it
-            ndwi = self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], raster_bands)
-            self.saver.save_array(ndwi, image.name + '_NDWI')
+            self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], save_index=True)
 
             # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-            mbwi = self.calc_mbwi(raster_bands, factor=2)
-            self.saver.save_array(mbwi, image.name + '_MBWI')
+            self.calc_mbwi(raster_bands, factor=2, save_index=True)
 
-            # save the mask
-            self.saver.save_array(image.invalid_mask, image.name + '_invalid_mask')
+            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+            self.calc_awei(raster_bands, save_index=True)
+
+            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+            # ndvi = self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], raster_bands)
+            # self.saver.save_array(ndvi, image.name + '_NDVI')
+
+            # save the final mask
+            self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
 
             # loop through the bands combinations to make the clusters
             for band_combination in self.config.clustering_bands:
@@ -182,11 +213,6 @@ class DWWaterDetect:
 
                 DWutils.plot_graphs(raster_bands, self.config.graphs_bands, matrice_cluster,
                                     graph_basename, image.invalid_mask, 1000)
-
-            # Test if there is enough valid pixels in the clipped images
-            # if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.max_invalid_pixels:
-            #     print('Not enough valid pixels in the image area')
-            #     return
 
             # bands = self.load_product_bands(image)
             # masks = self.load_mask_bands(image)

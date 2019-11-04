@@ -7,37 +7,43 @@ from DWCommon import DWutils
 
 
 class DWLoader:
-    dicS2BandNames = {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
-                      'Nir': 'B8', 'Nir2': 'B8A'}
 
-    dicSen2CorBandNames = {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
-                           'Nir': 'B08', 'Nir2': 'B8A'}
+    dicS2_THEIA = {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
+                   'Nir': 'B8', 'Nir2': 'B8A'},
+                   'suffix': '.tif', 'string': 'FRE'}
 
-    dicL8USGSBandNames = {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}
+    dicSEN2COR = {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12'},
+                  'Nir': 'B08', 'Nir2': 'B8A'}
 
-    dicOtherBandNames = {'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
-                         'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'}
+    dicL8USGS = {'bands_names': {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}}
+
+    dicLANDSAT = {'bands_names': {'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
+                  'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
+                  'suffix': '.tif', 'string': 'sr_band'}
 
     def __init__(self, input_folder, shape_file, product):
 
+        # save the input folder (holds all the images) and the shapefile
         self.input_folder = DWutils.check_path(input_folder, is_dir=True)
         self.shape_file = DWutils.check_path(shape_file, is_dir=False)
 
+        # load all sub-directories in the input folder (images) in a list
         self.images = DWutils.get_directories(self.input_folder)
 
+        # the product indicates if the images are S2_THEIA, LANDSAT, SEN2COR, etc.
         self.product = product
 
-        # index for iterating through DWLoader
+        # index for iterating through the images list. Starts with the first image
         self._index = 0
 
         # dictionary of bands pointing to gdal images
         self.gdal_bands = None
         self._clipped_gdal_bands = None
 
-        # dictionary of bands pointing to in memory arrays
+        # dictionary of bands pointing to in memory numpy arrays
         self.raster_bands = None
 
-        # reference band for shape, projection and transformation (the first band loaded by the user)
+        # reference band for shape, projection and transformation as a GDAL object
         self._ref_band = None
 
         # mask with the invalid pixels
@@ -61,6 +67,25 @@ class DWLoader:
         return self
 
     @property
+    def product_dict(self):
+
+        if self.product in ["L8_THEIA", "S5_THEIA"]:
+            print('Product not yet implemented')
+            sys.exit()
+
+        else:
+            if 'L8_USGS' in self.product:
+                product_dict = self.dicL8USGS
+            elif self.product in ["S2_PEPS", "S2_S2COR", "S2_THEIA", "S2_L2H"]:
+                product_dict = self.dicS2_THEIA
+            elif self.product in ["SEN2COR"]:
+                product_dict = self.dicSEN2COR
+            else:
+                product_dict = self.dicLANDSAT
+
+        return product_dict
+
+    @property
     def area_name(self):
         """
         Extracts the name of the area based on the shapefile name
@@ -72,32 +97,32 @@ class DWLoader:
         else:
             return None
 
-    def current_image(self):
-
+    @property
+    def current_image_folder(self):
+        """
+        Returns the full path folder of current (selected) image
+        :return: Posixpath of current image
+        """
         return self.images[self._index]
 
     @property
-    def name(self):
+    def current_image_name(self):
+        """
+        Returns the name of the current (selected) image
+        :return: String name of the current (selected) image
+        """
+        return self.current_image_folder.stem
 
-        return self.current_image().stem
+    def get_bands_files(self):
+        """
+        Retrieve the full path of bands saved for the current image, according to the product
+        :return: Posixpath of bands files
+        """
+        print('Retrieving bands for image: ' + self.current_image_folder.as_posix())
 
-    def find_product_bands(self):
-
-        print('Retrieving bands for image: ' + self.current_image().as_posix())
-        if self.product == 'S2_THEIA':
-            # get flat reflectance bands in a list
-            bands = [file for file in self.current_image().iterdir() if
-                     file .suffix == '.tif' and 'FRE' in file.stem]
-
-        elif self.product == 'LANDSAT8':
-            bands = [file for file in self.current_image().iterdir() if
-                     file .suffix == '.tif' and 'sr_band' in file.stem]
-
-        elif self.product == 'SEN2COR':
-            bands = [file for file in self.current_image().iterdir() if
-                     file .suffix == '.jp2' and ('_20m' in file.stem or '_10m' in file.stem)]
-        else:
-            bands = None
+        # put the full path of the corresponding bands in a list
+        bands = [file for file in self.current_image_folder.iterdir() if file.suffix == self.product_dict['suffix']
+                 and self.product_dict['string'] in file.stem]
 
         if bands:
             for b in bands:
@@ -109,7 +134,7 @@ class DWLoader:
         """
         Load a bands list, given a image_list and a dictionary of Keys(BandName) and identifiers to parse the filename
         ex. {'Green':'B3', 'Red':'B4'...}
-        The result, will be a dictionary with Keys(BandName) and RasterImages as values
+        The result, will be a dictionary with Keys(BandName) and GdalDatasets as values
         """
         # reset gdal and raster bands
         self.gdal_bands = {}
@@ -118,35 +143,18 @@ class DWLoader:
         self.invalid_mask = False
 
         print('Opening image in loader')
-        product_bands = self.find_product_bands()
-        product_bands_names = self.get_bands_names()
+        bands_files = self.get_bands_files()
 
-        self.gdal_bands = {}
-        for band_name in product_bands_names:
+        for band_name in self.product_dict['bands_names']:
             print('Loading band: ' + band_name)
-            gdal_img = self.open_gdal_image(product_bands, product_bands_names[band_name])
+            gdal_img = self.open_gdal_image(bands_files, self.product_dict['bands_names'][band_name])
+
             self.gdal_bands.update({band_name: gdal_img})
 
         # assign the reference band to _ref_band
         self._ref_band = self.gdal_bands[ref_band_name]
 
         return self.gdal_bands
-
-    def get_bands_names(self):
-        if self.product in ["L8_THEIA", "S5_THEIA"]:
-            print('not yet implemented')
-            sys.exit()
-
-        else:
-            if 'L8_USGS' in self.product:
-                band_names = self.dicL8USGSBandNames
-            elif self.product in ["S2_PEPS", "S2_S2COR", "S2_THEIA", "S2_L2H"]:
-                band_names = self.dicS2BandNames
-            elif self.product in ["SEN2COR"]:
-                band_names = self.dicSen2CorBandNames
-            else:
-                band_names = self.dicOtherBandNames
-        return band_names
 
     @property
     def projection(self):
@@ -177,7 +185,8 @@ class DWLoader:
         image_band = list(filter(lambda x: desired_band in os.path.split(x)[-1], bands_list))
 
         if len(image_band) == 0:
-            return None, None
+            raise OSError('Band not found.')
+
         elif len(image_band) > 1:
             raise OSError('More than one band {} in image list'.format(desired_band))
 
@@ -232,18 +241,18 @@ class DWLoader:
 
         return self.invalid_mask
 
-    def load_masks(self):
+    def load_masks(self, masks_list):
 
         mask_processor = None
         if self.product == 'S2_THEIA':
-            mask_processor = DWTheiaMaskProcessor(self.current_image(), self.x_size, self.y_size,
+            mask_processor = DWTheiaMaskProcessor(self.current_image_folder, self.x_size, self.y_size,
                                                   self.shape_file, self.temp_dir)
         elif self.product == 'LANDSAT8':
-            mask_processor = DWTheiaMaskProcessor(self.current_image(), self.x_size, self.y_size,
-                                                  self.shape_file, self.temp_dir)
+            mask_processor = DWLandsatMaskProcessor(self.current_image_folder, self.x_size, self.y_size,
+                                                    self.shape_file, self.temp_dir)
 
         if mask_processor:
-            self.update_mask(mask_processor.get_combined_masks())
+            self.update_mask(mask_processor.get_combined_masks(masks_list))
 
         # if self.product == 'S2_THEIA':
         #     mask_folder = self.current_image()/'MASKS'
@@ -294,7 +303,7 @@ class DWSaver:
 
         return
 
-    def set_output_image(self, image_name, geo_transform, projection):
+    def set_output_folder(self, image_name, geo_transform, projection):
         """
         For each image, the saver has to prepare the specific output directory, and saving parameters.
         The output directory is based on the base_output_folder, the area name and the image name
@@ -326,7 +335,16 @@ class DWSaver:
 
     @staticmethod
     def create_base_name(product_name, image_name):
-        return product_name + '-' + image_name.split('_')[1]
+
+        if '_' in image_name:
+            base_name = product_name + '-' + image_name.split('_')[1]
+        elif '-' in image_name:
+            base_name = product_name + '-' + image_name.split('-')[1]
+        else:
+            base_name = product_name + '-' + image_name
+
+        return base_name
+
 
     @staticmethod
     def create_output_folder(output_folder, image_name, area_name):
@@ -361,31 +379,92 @@ class DWSaver:
         return self._temp_dir
 
 
+class DWLandsatMaskProcessor:
+
+    LandsatMaskDict = {'fill': 1 << 0,
+                       'clear': 1 << 1,
+                       'water':  1 << 2,
+                       'cloud_shadow': 1 << 3,
+                       'snow': 1 << 4,
+                       'cloud': 1 << 5,
+                       'cloud_conf1': 1 << 6,
+                       'cloud_conf2': 1 << 7,
+                       'cirrus_conf1': 1 << 8,
+                       'cirrus_conf2': 1 << 9,
+                       'terrain_occlusion': 1 << 10
+                       }
+
+    def __init__(self, base_folder, x_size, y_size, shape_file=None, temp_dir=None):
+
+        self.x_size = x_size
+        self.y_size = y_size
+
+        self.masks_folder = base_folder
+
+        self.mask = self.open_mask(shape_file, temp_dir)
+
+    def open_mask(self, shape_file, temp_dir):
+
+        gdal_mask = self.open_gdal_masks(shape_file, temp_dir)
+
+        raster_mask = gdal_mask.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
+
+        return raster_mask
+
+    def open_gdal_masks(self, shape_file, temp_dir):
+
+        mask_file = [file for file in self.masks_folder.glob('*pixel_qa.tif')][0]
+        gdal_mask = gdal.Open(mask_file.as_posix())
+
+        if shape_file:
+
+            opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
+                                   srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+
+            dest_name = (temp_dir / 'qa_cliped').as_posix()
+            clipped_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+                                        srcDSOrSrcDSTab=gdal_mask,
+                                        options=opt)
+            clipped_mask_ds.FlushCache()
+            gdal_mask = clipped_mask_ds
+
+        return gdal_mask
+
+    def get_combined_masks(self, masks_list):
+
+        bitmask = 0
+        for mask_key in masks_list:
+            bitmask |= self.LandsatMaskDict[mask_key]
+
+        combined_mask = np.bitwise_and(self.mask, bitmask) != 0
+
+        return combined_mask
+
 class DWTheiaMaskProcessor:
 
-    TheiaMaskDict = {'CLM': '*_CLM_R2.tif',
-                     'EDG': '*_EDG_R2.tif',
-                     'MG2': '*_MG2_R2.tif',
+    TheiaMaskDict = {'CLM': '*_CLM_R1.tif',
+                     'EDG': '*_EDG_R1.tif',
+                     'MG2': '*_MG2_R1.tif',
                      'SAT1': '*_SAT_R1.tif',
                      'SAT2': '*_SAT_R2.tif'}
 
-    TheiaCLMDict = {'all_clouds_and_shadows': 1 << 0,
-                    'all_clouds': 1 << 1,
-                    'clouds_blue_band': 1 << 2,
-                    'clouds_multi_temporal': 1 << 3,
-                    'cirrus': 1 << 4,
-                    'cloud_shadows': 1 << 5,
-                    'other_shadows': 1 << 6,
-                    'high_clouds': 1 << 7}
+    TheiaCLMDict = {'clm_all_clouds_and_shadows': 1 << 0,
+                    'clm_all_clouds': 1 << 1,
+                    'clm_clouds_blue_band': 1 << 2,
+                    'clm_clouds_multi_temporal': 1 << 3,
+                    'clm_thin_clouds': 1 << 4,
+                    'clm_cloud_shadows': 1 << 5,
+                    'clm_other_shadows': 1 << 6,
+                    'clm_high_clouds': 1 << 7}
 
-    TheiaMG2Dict = {'water': 1 << 0,
-                    'all_clouds': 1 << 1,
-                    'snow': 1 << 2,
-                    'cloud_shadows': 1 << 3,
-                    'other_shadows': 1 << 4,
-                    'terrain_mask': 1 << 5,
-                    'sun_too_low': 1 << 6,
-                    'sun_tangent': 1 << 7}
+    TheiaMG2Dict = {'mg2_water': 1 << 0,
+                    'mg2_all_clouds': 1 << 1,
+                    'mg2_snow': 1 << 2,
+                    'mg2_cloud_shadows': 1 << 3,
+                    'mg2_other_shadows': 1 << 4,
+                    'mg2_terrain_mask': 1 << 5,
+                    'mg2_sun_too_low': 1 << 6,
+                    'mg2_sun_tangent': 1 << 7}
 
     def __init__(self, base_folder, x_size, y_size, shape_file=None, temp_dir=None):
 
@@ -432,25 +511,43 @@ class DWTheiaMaskProcessor:
 
         return gdal_masks
 
-    def get_combined_masks(self):
+    def get_combined_masks(self, masks_list):
+
+        cloud_bitmask = 0
+        mg2_bitmask = 0
+
+        # First, create a bitmask to identify the bits of the mask layer to be masked out
+        for mask_key in masks_list:
+            if 'clm' in mask_key:
+                cloud_bitmask |= self.TheiaCLMDict[mask_key]
+
+            if 'mg2' in mask_key:
+                mg2_bitmask |= self.TheiaMG2Dict[mask_key]
+
+        cloud_mask = np.bitwise_and(self.masks['CLM'], cloud_bitmask) != 0
+        mg2_mask = np.bitwise_and(self.masks['MG2'], mg2_bitmask) != 0
+
+        # First, create a cloud bitmask for all the clouds to be detected
+        # cloud_bitmask = self.TheiaCLMDict['all_clouds_and_shadows'] | \
+        #                 self.TheiaCLMDict['high_clouds'] | \
+        #                 self.TheiaCLMDict['thin_clouds']
 
         # cloud_mask = np.bitwise_and(self.masks['CLM'], theia_cloud_mask['all_clouds_and_shadows']) != 0
-        cloud_mask = np.bitwise_and(self.masks['CLM'], self.TheiaCLMDict['all_clouds_and_shadows']) != 0
 
-        # take care of -9999 ?
+        # No data mask
         edg_mask = self.masks['EDG'] != 0
 
-        # SAT
+        # Saturation SAT
         sat_mask = (self.masks['SAT1'] != 0) | (self.masks['SAT2'] != 0)
 
         # MG2 masks out snow and other shadows
-        mg2_mask = np.bitwise_and(self.masks['MG2'],
-                                  self.TheiaMG2Dict['snow'] |
-                                  self.TheiaMG2Dict['other_shadows'] |
-                                  self.TheiaMG2Dict['terrain_mask']) != 0
+        # mg2_mask = np.bitwise_and(self.masks['MG2'],
+        #                           self.TheiaMG2Dict['snow'] |
+        #                           self.TheiaMG2Dict['other_shadows'] |
+        #                           self.TheiaMG2Dict['terrain_mask']) != 0
 
-        # return cloud_mask | edg_mask | sat_mask | mg2_mask
-        return edg_mask
+        return cloud_mask | edg_mask | sat_mask | mg2_mask
+        # return edg_mask
 
 # considering a bit mask like:
 # mask = 0_0_0_1_0_1_0_0   (bit2 = cloud, bit 4 = shadow)
