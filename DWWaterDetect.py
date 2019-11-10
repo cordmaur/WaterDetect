@@ -4,7 +4,6 @@ import DWImage
 import numpy as np
 
 
-
 class DWWaterDetect:
 
     # initialize the variables
@@ -29,31 +28,6 @@ class DWWaterDetect:
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
 
         return
-
-    def load_mask_bands(self, image_folder):
-        masks = []
-        masks_folder = image_folder/'MASKS'
-
-        if self.product == 'S2_THEIA':
-
-            print('Retrieving THEIA masks:')
-            # get 10m resolution masks
-            masks.append([file for file in masks_folder.iterdir() if
-                          file.suffix == '.tif' and 'R1' in file.stem and ('CLM' in file.stem or
-                                                                           'EDG' in file.stem or
-                                                                           'MG2' in file.stem or
-                                                                           'SAT' in file.stem)])
-
-            masks.append([file for file in masks_folder.iterdir() if
-                          file.suffix == '.tif' and 'R2' in file.stem and ('CLM' in file.stem or
-                                                                           'EDG' in file.stem or
-                                                                           'MG2' in file.stem or
-                                                                           'SAT' in file.stem)])
-
-            for b in masks:
-                print(b)
-
-        return masks
 
     def necessary_bands(self, include_rgb):
         """
@@ -82,7 +56,6 @@ class DWWaterDetect:
         :param index_name: name of index to be used as key in the dictionary
         :param band1: first band to be used in the normalized difference
         :param band2: second band to be used in the normalized difference
-        :param bands_dict: dictionary of the bands
         :return: index array
         """
 
@@ -99,6 +72,7 @@ class DWWaterDetect:
     def calc_mbwi(self, bands, factor=3, save_index=False):
         """
         Calculates the Multiband Water Index and adds it to the bands dictionary
+        :param save_index: Inform if the index should be saved as array in the output folder
         :param bands: Bands dictionary with the raster bands
         :param factor: Factor to multiply the Green band as proposed in the original paper
         :return: mbwi array
@@ -120,6 +94,7 @@ class DWWaterDetect:
     def calc_awei(self, bands, save_index=False):
         """
         Calculates the AWEI Water Index and adds it to the bands dictionary
+        :param save_index: Inform if the index should be saved as array in the output folder
         :param bands: Bands dictionary with the raster bands
         :return: mbwi array
         """
@@ -132,6 +107,8 @@ class DWWaterDetect:
 
         bands.update({'awei': awei.filled()})
 
+        if save_index:
+            self.saver.save_array(awei.filled(), self.loader.current_image_name + '_awei')
 
         return awei.filled()
 
@@ -168,10 +145,13 @@ class DWWaterDetect:
                 continue
 
             # calculate the MNDWI, update the mask and saves it
-            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], save_index=True)
+            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir'], save_index=True)
 
             # calculate the NDWI update the mask and saves it
             self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], save_index=True)
+
+            # calculate the NDVI update the mask and saves it
+            self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], save_index=True)
 
             # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
             self.calc_mbwi(raster_bands, factor=2, save_index=True)
