@@ -344,3 +344,12 @@ class DWutils:
                   redband + ' ' + greenband + ' ' + blueband)
 
         return
+
+    @staticmethod
+    def create_bands_dict(bands_array, bands_order):
+
+        bands_dict = {}
+        for i, band in enumerate(bands_order):
+            bands_dict.update({band: bands_array[:,:,i]})
+
+        return bands_dict

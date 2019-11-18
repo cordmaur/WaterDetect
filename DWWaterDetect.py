@@ -116,90 +116,96 @@ class DWWaterDetect:
 
         # todo: wrap everything in a try catch loop
         for image in self.loader:
-            image = self.loader
 
-            # open image into DWLoader class, passing the reference band
-            image.open_current_image(ref_band_name=self.config.reference_band)
+            try:
+                image = self.loader
 
-            self.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
+                # open image into DWLoader class, passing the reference band
+                image.open_current_image(ref_band_name=self.config.reference_band)
 
-            # if there is a shape_file specified, make clipping of necessary bands and then update the output projection
-            if image.shape_file:
-                image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
-                                 self.saver.temp_dir)
-                self.saver.update_geo_transform(image.geo_transform, image.projection)
+                self.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
 
-            # create a composite R G B in the output folder
-            if self.config.create_composite:
-                DWutils.create_composite(image.gdal_bands, self.saver.output_folder)
+                # if there is a shape_file specified, make clipping of necessary bands and then update the output projection
+                if image.shape_file:
+                    image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
+                                     self.saver.temp_dir)
+                    self.saver.update_geo_transform(image.geo_transform, image.projection)
 
-            # Load necessary bands in memory
-            raster_bands = image.load_raster_bands(self.necessary_bands(include_rgb=False))
+                # create a composite R G B in the output folder
+                if self.config.create_composite:
+                    DWutils.create_composite(image.gdal_bands, self.saver.output_folder)
 
-            # todo: correct the masks
-            image.load_masks(self.config.get_masks_list(image.product))
+                # Load necessary bands in memory
+                raster_bands = image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
-            # Test if there is enough valid pixels in the clipped images
-            if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > 0.8:
-                print('Not enough valid pixels in the image area')
-                continue
+                # todo: correct the masks
+                image.load_masks(self.config.get_masks_list(image.product))
 
-            # calculate the MNDWI, update the mask and saves it
-            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir'], save_index=True)
+                # Test if there is enough valid pixels in the clipped images
+                if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > 0.8:
+                    print('Not enough valid pixels in the image area')
+                    continue
 
-            # calculate the NDWI update the mask and saves it
-            self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], save_index=True)
+                # calculate the MNDWI, update the mask and saves it
+                self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], save_index=True)
 
-            # calculate the NDVI update the mask and saves it
-            self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], save_index=True)
+                # calculate the NDWI update the mask and saves it
+                self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], save_index=True)
 
-            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-            self.calc_mbwi(raster_bands, factor=2, save_index=True)
+                # calculate the NDVI update the mask and saves it
+                self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], save_index=True)
 
-            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-            self.calc_awei(raster_bands, save_index=True)
+                # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+                self.calc_mbwi(raster_bands, factor=2, save_index=True)
 
-            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-            # ndvi = self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], raster_bands)
-            # self.saver.save_array(ndvi, image.name + '_NDVI')
+                # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+                self.calc_awei(raster_bands, save_index=True)
 
-            # save the final mask
-            self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
+                # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+                # ndvi = self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], raster_bands)
+                # self.saver.save_array(ndvi, image.name + '_NDVI')
 
-            # loop through the bands combinations to make the clusters
-            for band_combination in self.config.clustering_bands:
+                # save the final mask
+                self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
 
-                print('Calculating clusters for the following combination of bands:')
-                print(band_combination)
+                # loop through the bands combinations to make the clusters
+                for band_combination in self.config.clustering_bands:
 
-                # create the clustering image
-                dw_image = DWImage.DWImageClustering(raster_bands, band_combination, image.invalid_mask, self.config)
-                matrice_cluster = dw_image.run_detect_water()
+                    print('Calculating clusters for the following combination of bands:')
+                    print(band_combination)
 
-                # prepare the base product name based on algorithm and bands, to create the directory
-                cluster_product_name = dw_image.create_product_name()
+                    # create the clustering image
+                    dw_image = DWImage.DWImageClustering(raster_bands, band_combination, image.invalid_mask, self.config)
+                    matrice_cluster = dw_image.run_detect_water()
 
-                # save the water mask and the clustering results
-                self.saver.save_array(dw_image.water_mask, cluster_product_name + '_water_mask',
-                                      opt_relative_path=cluster_product_name)
-                self.saver.save_array(dw_image.cluster_matrix, cluster_product_name + '_clusters',
-                                      opt_relative_path=cluster_product_name)
+                    # prepare the base product name based on algorithm and bands, to create the directory
+                    cluster_product_name = dw_image.create_product_name()
 
-                # unload bands
+                    # save the water mask and the clustering results
+                    self.saver.save_array(dw_image.water_mask, cluster_product_name + '_water_mask',
+                                          opt_relative_path=cluster_product_name)
+                    self.saver.save_array(dw_image.cluster_matrix, cluster_product_name + '_clusters',
+                                          opt_relative_path=cluster_product_name)
 
-                # plot the graphs specified in graph_bands
-                graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
-                    .joinpath(self.saver.base_name + cluster_product_name).as_posix()
+                    # unload bands
 
-                DWutils.plot_graphs(raster_bands, self.config.graphs_bands, matrice_cluster,
-                                    graph_basename, image.invalid_mask, 1000)
+                    # plot the graphs specified in graph_bands
+                    graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
+                        .joinpath(self.saver.base_name + cluster_product_name).as_posix()
 
-            # bands = self.load_product_bands(image)
-            # masks = self.load_mask_bands(image)
+                    DWutils.plot_graphs(raster_bands, self.config.graphs_bands, matrice_cluster,
+                                        graph_basename, image.invalid_mask, 1000)
 
-            # if there are bands loaded call the water detection algorithm
-            # if bands:
-            #     CalculateStatistics2.Treat_files(bands, masks, self.product, self.output_folder, self.shape_file)
+                # bands = self.load_product_bands(image)
+                # masks = self.load_mask_bands(image)
+
+                # if there are bands loaded call the water detection algorithm
+                # if bands:
+                #     CalculateStatistics2.Treat_files(bands, masks, self.product, self.output_folder, self.shape_file)
+            except OSError:
+                print (OSError)
+
+
 
         return
 

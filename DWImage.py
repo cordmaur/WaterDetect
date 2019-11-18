@@ -7,8 +7,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.cross_validation import cross_val_score
 from sklearn.svm import LinearSVC
 from sklearn.grid_search import GridSearchCV
-from DWInputOutput import DWutils
-from DWCommon import DWConfig
+from DWCommon import DWConfig, DWutils
 
 
 class DWImageClustering:
@@ -54,7 +53,19 @@ class DWImageClustering:
         if invalid_mask is not None and invalid_mask.shape != ref_shape:
             raise OSError('Invalid mask and {} with different shape in clustering core'.format(ref_band))
         elif invalid_mask is None:
-            invalid_mask = np.zeros_like(ref_band)
+            invalid_mask = np.zeros(ref_shape, dtype=bool)
+
+        # check if the MNDWI index exist
+        if 'mndwi' not in bands.keys():
+            mndwi, mndwi_mask = DWutils.calc_normalized_difference(bands['Green'], bands['Mir2'], invalid_mask)
+            invalid_mask |= mndwi_mask
+            bands.update({'mndwi': mndwi})
+
+        # check if the NDWI index exist
+        if 'ndwi' not in bands.keys():
+            ndwi, ndwi_mask = DWutils.calc_normalized_difference(bands['Green'], bands['Nir'], invalid_mask)
+            invalid_mask |= ndwi_mask
+            bands.update({'ndwi': ndwi})
 
         # check if the list contains the required bands
         for band in bands_keys:
@@ -105,7 +116,7 @@ class DWImageClustering:
 
         if self.config.clustering_method == 'kmeans':
             cluster_model = cluster.KMeans(n_clusters=self.best_k, init='k-means++')
-        elif self.config.clustering_bands == 'gauss_mixture':
+        elif self.config.clustering_method == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
             cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='ward')
