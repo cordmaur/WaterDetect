@@ -240,6 +240,32 @@ class DWutils:
         return
 
     @staticmethod
+    def array2rgb_raster(filename, red, green, blue, geo_transform, projection, nodatavalue=-9999):
+
+        cols = red.shape[1]
+        rows = red.shape[0]
+
+        driver = gdal.GetDriverByName('GTiff')
+        out_raster = driver.Create(filename, cols, rows, 3, gdal.GDT_Float32)
+        out_raster.SetGeoTransform(geo_transform)
+        out_raster.SetProjection(projection)
+        outband = out_raster.GetRasterBand(1)
+        outband.SetNoDataValue(nodatavalue)
+        outband.WriteArray(red)
+
+        outband = out_raster.GetRasterBand(2)
+        outband.SetNoDataValue(nodatavalue)
+        outband.WriteArray(green)
+
+        outband = out_raster.GetRasterBand(3)
+        outband.SetNoDataValue(nodatavalue)
+        outband.WriteArray(blue)
+
+        outband.FlushCache()
+        print('Saving image: ' + filename)
+        return
+
+    @staticmethod
     def get_train_test_data(data, train_size, min_train_size, max_train_size):
         """
         Split the provided data in train-test bunches
@@ -261,7 +287,7 @@ class DWutils:
         return train_test_split(data, train_size=train_size)
 
     @staticmethod
-    def plot_clustered_data(data, cluster_names, file_name, graph_options):
+    def plot_clustered_data(data, cluster_names, file_name, graph_options, pdf_merger):
         plt.style.use('seaborn-whitegrid')
 
         plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick']
@@ -292,19 +318,24 @@ class DWutils:
 
         plt.savefig(file_name + '.png')
 
+        if pdf_merger:
+            plt.savefig(file_name + '.pdf')
+            pdf_merger.append(file_name + '.pdf')
+
         # plt.show()
         plt.close()
 
         return
 
     @staticmethod
-    def plot_graphs(bands, bands_combination, labels_array, file_name, invalid_mask=False, max_points=1000):
+    def plot_graphs(bands, graphs_bands, labels_array, file_name, graph_title, invalid_mask=False, max_points=1000,
+                    pdf_merger=None):
 
         # if combinations is not a list of lists, transform it in list of lists
-        if type(bands_combination[0]) == str:
-            bands_combination = [bands_combination]
+        if type(graphs_bands[0]) == str:
+            graphs_bands = [graphs_bands]
 
-        for bands_names in bands_combination:
+        for bands_names in graphs_bands:
             # O correto aqui e passar um dicionario com as opcoes, tipo, nome das legendas, etc.
             x_values = bands[bands_names[0]]
             y_values = bands[bands_names[1]]
@@ -313,7 +344,7 @@ class DWutils:
             graph_name = file_name + '_Graph_' + bands_names[0] + bands_names[1]
 
             # create the graph options dictionary
-            graph_options = {'title': 'Scatterplot ' + bands_names[0] + ' x ' + bands_names[1],
+            graph_options = {'title': graph_title + ':' + bands_names[0] + 'x' + bands_names[1],
                              'x_label': bands_names[0],
                              'y_label': bands_names[1]}
 
@@ -325,25 +356,30 @@ class DWutils:
 
             plot_data, _ = DWutils.get_train_test_data(data, train_size=1, min_train_size=0, max_train_size=max_points)
 
-            DWutils.plot_clustered_data(plot_data, cluster_names, graph_name, graph_options)
+            DWutils.plot_clustered_data(plot_data, cluster_names, graph_name, graph_options, pdf_merger)
 
         return
 
     @staticmethod
-    def create_composite(bands, folder_name):
+    def create_composite(bands, folder_name, pdf=True):
 
         # copy the RGB clipped bands to output directory
 
-        redband = copy(bands['Red'].GetDescription(), folder_name)
-        greenband = copy(bands['Green'].GetDescription(), folder_name)
-        blueband = copy(bands['Blue'].GetDescription(), folder_name)
+        red_band = copy(bands['Red'].GetDescription(), folder_name)
+        green_band = copy(bands['Green'].GetDescription(), folder_name)
+        blue_band = copy(bands['Blue'].GetDescription(), folder_name)
 
-        compositename = os.path.join(folder_name, os.path.split(folder_name)[-1] + '_composite.vrt')
+        composite_base_name = os.path.join(folder_name, os.path.split(folder_name)[-1] + '_composite')
 
-        os.system('gdalbuildvrt -separate ' + compositename + ' ' +
-                  redband + ' ' + greenband + ' ' + blueband)
+        os.system('gdalbuildvrt -separate ' + composite_base_name + '.vrt ' +
+                  red_band + ' ' + green_band + ' ' + blue_band)
 
-        return
+        if pdf:
+            cmd = 'gdal_translate -of pdf -ot Byte -scale 0 2000 -outsize 600 0 ' + composite_base_name + '.vrt ' \
+                  + composite_base_name + '.pdf'
+            os.system(cmd)
+
+        return composite_base_name
 
     @staticmethod
     def create_bands_dict(bands_array, bands_order):

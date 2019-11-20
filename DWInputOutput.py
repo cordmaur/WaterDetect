@@ -292,7 +292,7 @@ class DWSaver:
         self.product_name = product_name
 
         # save the name of the area
-        self.area_name = area_name
+        self._area_name = area_name
 
         # initialize other objects variables
         self._temp_dir = None
@@ -368,6 +368,29 @@ class DWSaver:
         filename = filename.joinpath(name + '.tif').as_posix()
 
         DWutils.array2raster(filename, array, self.geo_transform, self.projection)
+
+        return filename
+
+    def save_rgb_array(self, red, green, blue, name, opt_relative_path=None):
+
+        if opt_relative_path:
+            filename = self.output_folder.joinpath(opt_relative_path)
+            filename.mkdir(exist_ok=True)
+        else:
+            filename = self.output_folder
+
+        filename = filename.joinpath(name + '.tif').as_posix()
+
+        DWutils.array2rgb_raster(filename, red, green, blue, self.geo_transform, self.projection)
+
+        return filename
+
+    @property
+    def area_name(self):
+        if self._area_name:
+            return self._area_name
+        else:
+            return ''
 
     @property
     def temp_dir(self):

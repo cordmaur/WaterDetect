@@ -2,7 +2,8 @@ from DWInputOutput import DWSaver, DWLoader
 from DWCommon import DWConfig, DWutils
 import DWImage
 import numpy as np
-
+from PyPDF2 import PdfFileMerger
+import os
 
 class DWWaterDetect:
 
@@ -114,11 +115,17 @@ class DWWaterDetect:
 
     def run(self):
 
-        # todo: wrap everything in a try catch loop
+        # todo: receive pdf_report as an option
+        pdf_report = True
+
+        pdf_merger = PdfFileMerger() if pdf_report else None
+
         for image in self.loader:
 
             try:
                 image = self.loader
+
+                pdf_merger_image = PdfFileMerger() if pdf_merger else None
 
                 # open image into DWLoader class, passing the reference band
                 image.open_current_image(ref_band_name=self.config.reference_band)
@@ -133,7 +140,12 @@ class DWWaterDetect:
 
                 # create a composite R G B in the output folder
                 if self.config.create_composite:
-                    DWutils.create_composite(image.gdal_bands, self.saver.output_folder)
+                    composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder)
+
+                    if pdf_merger_image:
+                        pdf_merger_image.append(composite_name + '.pdf')
+                else:
+                    composite_name = None
 
                 # Load necessary bands in memory
                 raster_bands = image.load_raster_bands(self.necessary_bands(include_rgb=False))
@@ -189,23 +201,67 @@ class DWWaterDetect:
 
                     # unload bands
 
+                    # if there is a composite image, burn-in the mask
+                    if composite_name:
+                        red = np.copy(raster_bands['Red'])
+                        red[dw_image.water_mask == 1] = 0
+                        green = np.copy(raster_bands['Green'])
+                        green[dw_image.water_mask == 1] = 0
+                        blue = np.copy(raster_bands['Blue'])
+                        blue[dw_image.water_mask == 1] = np.max(raster_bands['Blue'])
+
+                        filename = self.saver.save_rgb_array(red * 10000, green * 10000,
+                                                             blue * 10000, cluster_product_name + '_mask',
+                                                             opt_relative_path=cluster_product_name)
+
+                        if pdf_merger_image:
+                            new_filename = filename[:-4] + '.pdf'
+                            translate = 'gdal_translate -outsize 600 0 -ot Byte -scale 0 2000 -of pdf ' + filename + ' ' + new_filename
+                            os.system(translate)
+
+                            pdf_merger_image.append(new_filename)
+
                     # plot the graphs specified in graph_bands
                     graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
                         .joinpath(self.saver.base_name + cluster_product_name).as_posix()
 
+                    # for the PDF writer, we need to pass all the information needed for the title
+                    # so, we will produce the graph title = Area + Date + Product
+                    graph_title = self.saver.area_name + ' ' + self.saver.base_name + cluster_product_name
+
                     DWutils.plot_graphs(raster_bands, self.config.graphs_bands, matrice_cluster,
-                                        graph_basename, image.invalid_mask, 1000)
+                                        graph_basename, graph_title, image.invalid_mask, 1000, pdf_merger_image)
 
-                # bands = self.load_product_bands(image)
-                # masks = self.load_mask_bands(image)
+                if pdf_merger_image:
+                    if len(self.config.clustering_bands) == 1:
+                        report_name = 'ImageReport'
+                        for band in self.config.clustering_bands[0]:
+                            report_name += '_' + band
+                        report_name += '.pdf'
+                    else:
+                        report_name = 'ImageReport.pdf'
 
-                # if there are bands loaded call the water detection algorithm
-                # if bands:
-                #     CalculateStatistics2.Treat_files(bands, masks, self.product, self.output_folder, self.shape_file)
+                    with open(self.saver.output_folder.joinpath(report_name), 'wb') as file_obj:
+                        pdf_merger_image.write(file_obj)
+
+                    pdf_merger_image.close()
+
+                    pdf_merger.append(self.saver.output_folder.joinpath('report.pdf').as_posix())
+
             except OSError:
-                print (OSError)
+                    print(OSError)
 
-
+        if pdf_merger:
+            if len(self.config.clustering_bands) == 1:
+                report_name = 'FullReport'
+                for band in self.config.clustering_bands[0]:
+                    report_name += '_' + band
+                report_name += '.pdf'
+            else:
+                report_name = 'FullReport.pdf'
+            with open(self.saver.base_output_folder.joinpath(self.saver.area_name).
+                              joinpath(report_name), 'wb') as file_obj:
+                pdf_merger.write(file_obj)
 
         return
 
