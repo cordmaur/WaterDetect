@@ -115,42 +115,40 @@ class DWWaterDetect:
 
     def run(self):
 
-        # todo: receive pdf_report as an option
-        pdf_report = True
-
-        pdf_merger = PdfFileMerger() if pdf_report else None
+        # if pdf_report is true, creates a FileMerger to assembly the FullReport
+        pdf_merger = PdfFileMerger() if self.config.pdf_reports else None
 
         for image in self.loader:
 
+            # wrap the clustering loop into a try_catch to avoid single image problems
             try:
                 image = self.loader
 
-                pdf_merger_image = PdfFileMerger() if pdf_merger else None
+                # todo: use the output folder to create a temporary folder and simplify the clipping
 
                 # open image into DWLoader class, passing the reference band
                 image.open_current_image(ref_band_name=self.config.reference_band)
 
+                # prepare the saver with output folder and transformations
                 self.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
 
-                # if there is a shape_file specified, make clipping of necessary bands and then update the output projection
+                # if there is a shape_file specified, clip necessary bands and then update the output projection
                 if image.shape_file:
                     image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
                                      self.saver.temp_dir)
                     self.saver.update_geo_transform(image.geo_transform, image.projection)
 
                 # create a composite R G B in the output folder
-                if self.config.create_composite:
-                    composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder)
-
-                    if pdf_merger_image:
-                        pdf_merger_image.append(composite_name + '.pdf')
+                if self.config.create_composite or self.config.pdf_reports:
+                    composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
+                                                              self.config.pdf_reports)
                 else:
                     composite_name = None
 
                 # Load necessary bands in memory
                 raster_bands = image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
-                # todo: correct the masks
+                # load the masks specified in the config
                 image.load_masks(self.config.get_masks_list(image.product))
 
                 # Test if there is enough valid pixels in the clipped images
@@ -158,33 +156,21 @@ class DWWaterDetect:
                     print('Not enough valid pixels in the image area')
                     continue
 
-                # calculate the MNDWI, update the mask and saves it
-                self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], save_index=True)
-
-                # calculate the NDWI update the mask and saves it
-                self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], save_index=True)
-
-                # calculate the NDVI update the mask and saves it
-                self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], save_index=True)
-
-                # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-                self.calc_mbwi(raster_bands, factor=2, save_index=True)
-
-                # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-                self.calc_awei(raster_bands, save_index=True)
-
-                # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-                # ndvi = self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], raster_bands)
-                # self.saver.save_array(ndvi, image.name + '_NDVI')
-
-                # save the final mask
-                self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
+                # calc the necessary indexes and update the image's mask
+                self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=True)
 
                 # loop through the bands combinations to make the clusters
                 for band_combination in self.config.clustering_bands:
 
                     print('Calculating clusters for the following combination of bands:')
                     print(band_combination)
+
+                    # if there pdf_reports, create a FileMerger for this specific band combination
+                    if self.config.pdf_reports:
+                        pdf_merger_image = PdfFileMerger()
+                        pdf_merger_image.append(composite_name + '.pdf')
+                    else:
+                        pdf_merger_image = None
 
                     # create the clustering image
                     dw_image = DWImage.DWImageClustering(raster_bands, band_combination, image.invalid_mask, self.config)
@@ -201,27 +187,12 @@ class DWWaterDetect:
 
                     # unload bands
 
-                    # if there is a composite image, burn-in the mask
-                    if composite_name:
-                        red = np.copy(raster_bands['Red'])
-                        red[dw_image.water_mask == 1] = 0
-                        green = np.copy(raster_bands['Green'])
-                        green[dw_image.water_mask == 1] = 0
-                        blue = np.copy(raster_bands['Blue'])
-                        blue[dw_image.water_mask == 1] = np.max(raster_bands['Blue'])
+                    # if there is a pdf to create, burn-in the mask into the RGB composite
+                    # and append it to the image merger
+                    if self.config.pdf_reports:
+                        pdf_merger_image.append(self.create_rgb_burn_in_mask(dw_image))
 
-                        filename = self.saver.save_rgb_array(red * 10000, green * 10000,
-                                                             blue * 10000, cluster_product_name + '_mask',
-                                                             opt_relative_path=cluster_product_name)
-
-                        if pdf_merger_image:
-                            new_filename = filename[:-4] + '.pdf'
-                            translate = 'gdal_translate -outsize 600 0 -ot Byte -scale 0 2000 -of pdf ' + filename + ' ' + new_filename
-                            os.system(translate)
-
-                            pdf_merger_image.append(new_filename)
-
-                    # plot the graphs specified in graph_bands
+                    # create the full path basename to plot the graphs to
                     graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
                         .joinpath(self.saver.base_name + cluster_product_name).as_posix()
 
@@ -232,21 +203,15 @@ class DWWaterDetect:
                     DWutils.plot_graphs(raster_bands, self.config.graphs_bands, matrice_cluster,
                                         graph_basename, graph_title, image.invalid_mask, 1000, pdf_merger_image)
 
-                if pdf_merger_image:
-                    if len(self.config.clustering_bands) == 1:
-                        report_name = 'ImageReport'
-                        for band in self.config.clustering_bands[0]:
-                            report_name += '_' + band
-                        report_name += '.pdf'
-                    else:
-                        report_name = 'ImageReport.pdf'
+                    if self.config.pdf_reports:
+                        report_name = 'ImageReport' + '_' + cluster_product_name + '.pdf'
 
-                    with open(self.saver.output_folder.joinpath(report_name), 'wb') as file_obj:
-                        pdf_merger_image.write(file_obj)
+                        with open(self.saver.output_folder.joinpath(report_name), 'wb') as file_obj:
+                            pdf_merger_image.write(file_obj)
 
-                    pdf_merger_image.close()
+                        pdf_merger_image.close()
 
-                    pdf_merger.append(self.saver.output_folder.joinpath('report.pdf').as_posix())
+                        pdf_merger.append(self.saver.output_folder.joinpath(report_name).as_posix())
 
             except OSError:
                     print(OSError)
@@ -264,4 +229,51 @@ class DWWaterDetect:
                 pdf_merger.write(file_obj)
 
         return
+
+    def create_rgb_burn_in_mask(self, dw_image):
+
+        cluster_product_name = dw_image.create_product_name()
+        red = np.copy(dw_image.bands['Red'])
+        red[dw_image.water_mask == 1] = 0
+        green = np.copy(dw_image.bands['Green'])
+        green[dw_image.water_mask == 1] = 0
+        blue = np.copy(dw_image.bands['Blue'])
+        blue[dw_image.water_mask == 1] = np.max(dw_image.bands['Blue'])
+
+        filename = self.saver.save_rgb_array(red * 10000, green * 10000,
+                                             blue * 10000, cluster_product_name + '_mask',
+                                             opt_relative_path=cluster_product_name)
+
+        new_filename = filename[:-4] + '.pdf'
+        translate = 'gdal_translate -outsize 600 0 -ot Byte -scale 0 2000 -of pdf ' + filename + ' ' + new_filename
+        os.system(translate)
+
+        return new_filename
+
+    def calc_indexes(self, image, indexes_list, save_index=False):
+
+        raster_bands = image.raster_bands
+
+        if 'mndwi' in indexes_list:
+            # calculate the MNDWI, update the mask and saves it
+            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], save_index=save_index)
+
+        if 'ndwi' in indexes_list:
+            # calculate the NDWI update the mask and saves it
+            self.calc_nd_index('ndwi', raster_bands['Green'], raster_bands['Nir'], save_index=save_index)
+
+        if 'ndvi' in indexes_list:
+            # calculate the NDVI update the mask and saves it
+            self.calc_nd_index('ndvi', raster_bands['Nir'], raster_bands['Red'], save_index=save_index)
+
+        if 'mbwi' in indexes_list:
+            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+            self.calc_mbwi(raster_bands, factor=2, save_index=save_index)
+
+        if 'awei' in indexes_list:
+            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
+            self.calc_awei(raster_bands, save_index=save_index)
+
+        # update the final mask
+        self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
 

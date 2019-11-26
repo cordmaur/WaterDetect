@@ -16,6 +16,7 @@ class DWConfig:
     _config_file = 'WaterDetect.ini'
     _defaults = {'reference_band': 'Red',
                  'create_composite': 'True',
+                 'pdf_reports': 'False',
                  'clustering_method': 'aglomerative',
                  'min_clusters': '1',
                  'max_clusters': '5',
@@ -79,6 +80,10 @@ class DWConfig:
     @property
     def create_composite(self):
         return self.get_option('General', 'create_composite', evaluate=True)
+
+    @property
+    def pdf_reports(self):
+        return self.get_option('General', 'pdf_reports', evaluate=True)
 
     @property
     def clustering_method(self):
@@ -217,7 +222,12 @@ class DWutils:
         nd[nd > 1] = 1
         nd[nd < -1] = -1
 
-        nd_mask = np.isinf(nd) | np.isnan(nd) | mask
+        # if result is infinite, result should be 1
+        nd[np.isinf(nd)] = 1
+
+        # nd_mask = np.isinf(nd) | np.isnan(nd) | mask
+        nd_mask = np.isnan(nd) | mask
+
         nd = np.ma.array(nd, mask=nd_mask, fill_value=-9999)
 
         return nd.filled(), nd.mask
