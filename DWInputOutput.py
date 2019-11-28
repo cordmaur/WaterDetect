@@ -17,7 +17,7 @@ class DWLoader:
 
     dicL8USGS = {'bands_names': {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}}
 
-    dicLANDSAT = {'bands_names': {'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
+    dicLANDSAT = {'bands_names': {'Aero': 'band1', 'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
                   'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
                   'suffix': '.tif', 'string': 'sr_band'}
 
