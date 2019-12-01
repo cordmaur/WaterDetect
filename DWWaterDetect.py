@@ -66,7 +66,7 @@ class DWWaterDetect:
         self.loader.raster_bands.update({index_name: index})
 
         if save_index:
-            self.saver.save_array(index, self.loader.current_image_name + '_' + index_name)
+            self.saver.save_array(index, self.loader.current_image_name + '_' + index_name, no_data_value=-9999)
 
         return index
 
@@ -88,7 +88,7 @@ class DWWaterDetect:
         bands.update({'mbwi': mbwi.filled()})
 
         if save_index:
-            self.saver.save_array(mbwi.filled(), self.loader.current_image_name + '_mbwi')
+            self.saver.save_array(mbwi.filled(), self.loader.current_image_name + '_mbwi', no_data_value=-9999)
 
         return mbwi.filled()
 
@@ -109,7 +109,7 @@ class DWWaterDetect:
         bands.update({'awei': awei.filled()})
 
         if save_index:
-            self.saver.save_array(awei.filled(), self.loader.current_image_name + '_awei')
+            self.saver.save_array(awei.filled(), self.loader.current_image_name + '_awei', no_data_value=-9999)
 
         return awei.filled()
 
@@ -158,6 +158,12 @@ class DWWaterDetect:
 
                 # calc the necessary indexes and update the image's mask
                 self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=True)
+
+                ##################################################################
+                self.calc_texture(image, save_texture=True)
+
+                # print (STOP)
+                ##################################################################
 
                 # loop through the bands combinations to make the clusters
                 for band_combination in self.config.clustering_bands:
@@ -225,7 +231,7 @@ class DWWaterDetect:
             else:
                 report_name = 'FullReport.pdf'
             with open(self.saver.base_output_folder.joinpath(self.saver.area_name).
-                              joinpath(report_name), 'wb') as file_obj:
+                      joinpath(report_name), 'wb') as file_obj:
                 pdf_merger.write(file_obj)
 
         return
@@ -276,4 +282,100 @@ class DWWaterDetect:
 
         # update the final mask
         self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
+
+    def sliding_window(Self, img, patch_size=5,
+                       istep=1, jstep=1, scale=1.0):
+        # Ni, Nj = (int(scale * s) for s in patch_size)
+        Ni = patch_size
+        Nj = patch_size
+
+        for i in range(0, img.shape[0] - Ni, istep):
+            for j in range(0, img.shape[1] - Ni, jstep):
+                patch = img[i:i + Ni, j:j + Nj]
+                # if scale != 1:
+                #     patch = transform.resize(patch, patch_size)
+                yield (i, j), patch
+
+    def calc_texture(self, image, save_texture=False):
+
+        texture_band = image.raster_bands['Mir2']
+
+        std_stack = np.stack((texture_band, np.roll(texture_band, 1, 0), np.roll(texture_band, -1, 0), np.roll(texture_band, 1, 1),
+                              np.roll(texture_band, -1, 1),
+                              np.roll(np.roll(texture_band, 1, 0), 1, 1),
+                              np.roll(np.roll(texture_band, 1, 0), -1, 1),
+                              np.roll(np.roll(texture_band, -1, 0), 1, 1),
+                              np.roll(np.roll(texture_band, -1, 0), -1, 1)), 2)
+
+        std = np.std(std_stack, 2)
+        # std = texture_band
+        #
+        # std[std > 0.05] = np.max(std[std <= 0.05])
+
+        # std1 = image.raster_bands['mndwi'] - 50 * std
+        # std2 = image.raster_bands['ndwi'] - 50 * std
+
+        from sklearn.preprocessing import QuantileTransformer
+        qt = QuantileTransformer()
+
+        # transform std in column to apply the qualtile transform
+        norm_std = qt.fit_transform(std.reshape(-1, 1))
+        norm_std = norm_std.reshape(std.shape)
+
+        std1 = image.raster_bands['mndwi'] - norm_std
+        std2 = image.raster_bands['ndwi'] - norm_std
+
+        if save_texture:
+            self.saver.save_array(norm_std, image.current_image_name + '_std', no_data_value=0)
+
+        # image.raster_bands.update({'std': norm_std})
+        image.raster_bands.update({'std1': std1})
+        image.raster_bands.update({'std2': std2})
+
+        return
+
+        # indices, patches = zip(*self.sliding_window(nir))
+
+        # std_dev = np.array([np.std(patch) for patch in patches])
+
+        # the last indice holds the shape of the patches matrix
+        # std = np.zeros(indices[-1])
+        # std[std==0]=std_dev
+
+        # or, using the reshape function
+        # std_dev.reshape(indices[-1])
+
+        # print(std_dev.shape)
+
+        # self.saver.save_array(std_dev, 'nir_std_dev', no_data_value=-9999)
+
+
+        # from skimage.feature import greycomatrix, greycoprops
+
+        # glcm = greycomatrix(raster_bands['Nir'], [5], [0], 256, symmetric=True, normed=True)
+        # diss = greycoprops(glcm, 'dissimilarity')[0, 0]
+        # ys.append(greycoprops(glcm, 'correlation')[0, 0])
+
+        # otsu thresholding on MNDWI just like every implementation
+        # from skimage.filters import threshold_otsu
+        # threshold = threshold_otsu(mndwi[mndwi > -9999])
+
+        # from skimage.segmentation import random_walker
+        #
+        # mndwi[mndwi<-1] = -1
+        # mndwi[mndwi>1] = 1
+        # markers = np.zeros(mndwi.shape, dtype=np.uint)
+        # markers[mndwi < -0.4] = 1
+        # markers[mndwi > 0.4] = 2
+        #
+        # Run random walker algorithm
+        # labels = random_walker(mndwi, markers, beta=10, mode='bf')
+        # self.saver.save_array(labels, 'mndwi_walker_labels', no_data_value=-9999)
+
+        # otsu = np.copy(mndwi)
+        # otsu[otsu < threshold] = -9999
+        #
+        # from skimage.filters import threshold_local
+        # local_threshold = threshold_local(mndwi, block_size=999)
+        # self.saver.save_array(mndwi>local_threshold, 'mndwi_local_threshold.tif', no_data_value=-9999)
 

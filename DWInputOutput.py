@@ -357,7 +357,7 @@ class DWSaver:
 
         return output_folder
 
-    def save_array(self, array, name, opt_relative_path=None):
+    def save_array(self, array, name, opt_relative_path=None, no_data_value=0):
 
         if opt_relative_path:
             filename = self.output_folder.joinpath(opt_relative_path)
@@ -367,7 +367,7 @@ class DWSaver:
 
         filename = filename.joinpath(name + '.tif').as_posix()
 
-        DWutils.array2raster(filename, array, self.geo_transform, self.projection)
+        DWutils.array2raster(filename, array, self.geo_transform, self.projection, no_data_value)
 
         return filename
 
