@@ -161,6 +161,11 @@ class DWWaterDetect:
 
                 ##################################################################
                 self.calc_texture(image, save_texture=True)
+                # The final solution will be to push the texture calculation into DWImage
+                # if there is a flag (use texture_stretch), we compute using the same bands, streched by the texture
+
+                # to calculate the otsu mask, we could stop here, or include otsu in a bands combination, like:
+                # ['otsu', 'mndwi'] to indicate the band to apply the ostu.
 
                 # print (STOP)
                 ##################################################################

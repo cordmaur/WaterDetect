@@ -67,8 +67,12 @@ class DWImageClustering:
             invalid_mask |= ndwi_mask
             bands.update({'ndwi': ndwi})
 
+        # todo: check the band for Principal Component Analysis
+
         # check if the list contains the required bands
         for band in bands_keys:
+            if band == 'otsu':
+                continue
 
             if band not in bands.keys():
                 raise OSError('Band {}, not available in the dictionary'.format(band))
@@ -335,6 +339,9 @@ class DWImageClustering:
         :param indices_array: position of the clustered pixels in the matrix
         :return: clustered image (0-no data, 1-water, 2, 3, ... - other)
         """
+
+        # todo: treat no_data value of -9999
+
         # create an empty matrix
         matrice_cluster = np.zeros_like(list(self.bands.values())[0])
 
@@ -403,6 +410,21 @@ class DWImageClustering:
 
         return product_name
 
+    def apply_otsu_treshold(self):
+        from skimage.filters import threshold_otsu
+
+        # band to apply otsu threshold. Use the second band in bands_keys
+        otsu_band = self.bands[self.bands_keys[1]]
+
+        threshold = threshold_otsu(otsu_band[otsu_band > -9999])
+
+        # create an empty matrix
+        matrice_cluster = np.zeros_like(list(self.bands.values())[0])
+
+        matrice_cluster[otsu_band >= threshold] = 1
+
+        return matrice_cluster
+
     ############################################################################
     # MAIN run_detect_water function
     # -------------------------------------------------------------------------#
@@ -412,15 +434,25 @@ class DWImageClustering:
         :param config: Options dictionary for the processing
         :return: clustered matrix where 1= water
         """
+
         # if passed options, override the existing options
         self.config = config if type(config) == DWConfig else self.config
 
+        if self.bands_keys[0] == 'otsu':
+            self.cluster_matrix = self.apply_otsu_treshold()
+
+        else:
+            self.cluster_matrix = self.apply_clustering()
+
+        self.water_mask = self.cluster_matrix == 1
+
+        return self.cluster_matrix
+
+    def apply_clustering(self):
         # Transform the rasters in a matrix where each band is a column
         self.data_as_columns = self.bands_to_columns()
-
         # two line vectors indicating the indexes (line, column) of valid pixels
         ind_data = np.where(~self.invalid_mask)
-
         # if algorithm is not kmeans, split data for a smaller set (for performance purposes)
         if self.config.clustering_method == 'kmeans':
             train_data_as_columns = self.data_as_columns
@@ -434,19 +466,14 @@ class DWImageClustering:
         # create data bunch only with the bands used for clustering
         split_train_data_as_columns = self.split_data_by_bands(train_data_as_columns, self.bands_keys)
         split_data_as_columns = self.split_data_by_bands(self.data_as_columns, self.bands_keys)
-
         # find the best clustering solution (k = number of clusters)
         self.best_k = self.find_best_k(split_train_data_as_columns)
-
         # apply the clusterization algorithm and return labels and train dataset
         train_clusters_labels = self.apply_cluster(split_train_data_as_columns)
-
         # calc statistics for each cluster
         self.clusters_params = self.calc_clusters_params(train_data_as_columns, train_clusters_labels)
-
         # detect the water cluster
         self.water_cluster = self.identify_water_cluster()
-
         # if we are dealing with aglomerative cluster or other diff from kmeans, we have only a sample of labels
         # we need to recreate labels for all the points using supervised classification
         if self.config.clustering_method != 'kmeans':
@@ -462,10 +489,9 @@ class DWImageClustering:
                                  (self.bands[self.config.clip_band][~self.invalid_mask] > self.config.clip_value)] = -1
 
         # create an cluster array based on the cluster result (water will be value 1)
-        self.cluster_matrix = self.create_matrice_cluster(ind_data)
-        self.water_mask = self.cluster_matrix == 1
+        return self.create_matrice_cluster(ind_data)
 
-        return self.cluster_matrix
+
 
 # todo: fazer a rotina ficar genrica para as bandas do machine learning
 # todo: deixar o train_data para poder fazer um gráfico mais rápido depois???
