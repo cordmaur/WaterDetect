@@ -213,8 +213,8 @@ class DWWaterDetect:
 
                         pdf_merger.append(self.saver.output_folder.joinpath(report_name).as_posix())
 
-            except OSError:
-                    print(OSError)
+            except OSError as err:
+                print(err)
 
         if pdf_merger:
             if len(self.config.clustering_bands) == 1:

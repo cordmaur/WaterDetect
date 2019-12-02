@@ -15,7 +15,6 @@ Created on:     Fri Nov 23 10:30:20 2018
 import DWWaterDetect
 import argparse
 
-
 # check if the system was called from the main flux
 if __name__ == '__main__':
 
