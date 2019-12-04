@@ -8,12 +8,7 @@ DetectWater Class
 - faz:
 	- cria um DWLoader (input folder, tipo de produto (theia ou landsat)
 	- cria um DWSaver (output folder, projection from loader) 
-	- cria um DWProcessor (Loader, Saver, options)
-	- Processor.run()
-
-DWProcessor
-- recebe: Loader, Saver, options (o que calcular, onde salvar, etc.)
-- faz:
+	- DetectWater.run()
 	- se MNDWI, combina a lista bands_keys (sem MNDWI) com ['Green','Mir2']
 	- loop pelas imagens do Loader
 	- para cada imagem:
@@ -31,6 +26,10 @@ DWProcessor
 			- Saver.save(graphs)
 		- del ImageCluster
 		- Loader.clear()
+
+DWProcessor
+- recebe: Loader, Saver, options (o que calcular, onde salvar, etc.)
+- faz:
 
 	
 

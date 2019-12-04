@@ -1,12 +1,12 @@
 import numpy as np
 from sklearn import cluster
 from sklearn import metrics
-from sklearn.mixture import GMM
+# from sklearn.mixture import GMM
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
-from sklearn.cross_validation import cross_val_score
+# from sklearn.cross_validation import cross_val_score
 from sklearn.svm import LinearSVC
-from sklearn.grid_search import GridSearchCV
+# from sklearn.grid_search import GridSearchCV
 from DWCommon import DWConfig, DWutils
 
 
