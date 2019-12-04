@@ -4,6 +4,8 @@ import DWImage
 import numpy as np
 from PyPDF2 import PdfFileMerger
 import os
+import DWInversion
+
 
 class DWWaterDetect:
 
@@ -28,6 +30,9 @@ class DWWaterDetect:
         # Create a saver object
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
 
+        # if there is an inversion, create the object of Algorithms class, None otherwise
+        self.inversion_algos = DWInversion.DWInversionAlgos() if self.config.inversion else None
+
         return
 
     def necessary_bands(self, include_rgb):
@@ -38,7 +43,7 @@ class DWWaterDetect:
         """
 
         # initialize with basic bands for MNDWI and NDWI and MBWI
-        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir', 'Mir2', self.config.reference_band}
+        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir', 'Mir2', 'RedEdg1', self.config.reference_band}
 
         if include_rgb:
             necessary_bands = necessary_bands.union({'Red', 'Green', 'Blue'})
@@ -124,7 +129,7 @@ class DWWaterDetect:
             try:
                 image = self.loader
 
-                # todo: use the output folder to create a temporary folder and simplify the clipping
+                # todo: use the given output folder to create a temporary folder and simplify the clipping
 
                 # open image into DWLoader class, passing the reference band
                 image.open_current_image(ref_band_name=self.config.reference_band)
@@ -160,7 +165,8 @@ class DWWaterDetect:
                 self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=True)
 
                 ##################################################################
-                self.calc_texture(image, save_texture=True)
+                if self.config.texture_stretching:
+                    self.calc_texture(image, save_texture=True)
                 # The final solution will be to push the texture calculation into DWImage
                 # if there is a flag (use texture_stretch), we compute using the same bands, streched by the texture
 
@@ -184,7 +190,8 @@ class DWWaterDetect:
                         pdf_merger_image = None
 
                     # create the clustering image
-                    dw_image = DWImage.DWImageClustering(raster_bands, band_combination, image.invalid_mask, self.config)
+                    dw_image = DWImage.DWImageClustering(raster_bands, band_combination,
+                                                         image.invalid_mask, self.config)
                     matrice_cluster = dw_image.run_detect_water()
 
                     # prepare the base product name based on algorithm and bands, to create the directory
@@ -198,10 +205,22 @@ class DWWaterDetect:
 
                     # unload bands
 
+                    # todo: multiple parameters
+                    # todo: put common codes into DWCommon.py
+
                     # if there is a pdf to create, burn-in the mask into the RGB composite
                     # and append it to the image merger
                     if self.config.pdf_reports:
-                        pdf_merger_image.append(self.create_rgb_burn_in_mask(dw_image))
+                        pdf_merger_image.append(self.create_rgb_burn_in_pdf(cluster_product_name + '_water_mask',
+                                                                            dw_image.water_mask,
+                                                                            color=(0, 0, 1),
+                                                                            fade=1,
+                                                                            opt_relative_path=cluster_product_name,
+                                                                            no_data_value=0))
+
+                    # calc the inversion parameter
+                    if self.config.inversion:
+                        self.calc_inversion_parameter(dw_image, pdf_merger_image)
 
                     # create the full path basename to plot the graphs to
                     graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
@@ -224,7 +243,7 @@ class DWWaterDetect:
 
                         pdf_merger.append(self.saver.output_folder.joinpath(report_name).as_posix())
 
-            except OSError as err:
+            except Exception as err:
                 print(err)
 
         if pdf_merger:
@@ -241,19 +260,64 @@ class DWWaterDetect:
 
         return
 
-    def create_rgb_burn_in_mask(self, dw_image):
+    def calc_inversion_parameter(self, dw_image, pdf_merger_image):
+        """
+        Calculate the parameter in config.parameter and saves it to the dictionary of bands.
+        That will make it easier to make graphs correlating any band with the parameter.
+        Also, checks if there are reports, then add the parameter to it.
+        :return: The parameter matrix
+        """
 
-        cluster_product_name = dw_image.create_product_name()
-        red = np.copy(dw_image.bands['Red'])
-        red[dw_image.water_mask == 1] = 0
-        green = np.copy(dw_image.bands['Green'])
-        green[dw_image.water_mask == 1] = 0
-        blue = np.copy(dw_image.bands['Blue'])
-        blue[dw_image.water_mask == 1] = np.max(dw_image.bands['Blue'])
+        # POR ENQUANTO BASTA PASSARMOS O DICIONÁRIO DE BANDAS E O PRODUTO PARA TODOS
 
-        filename = self.saver.save_rgb_array(red * 10000, green * 10000,
-                                             blue * 10000, cluster_product_name + '_mask',
-                                             opt_relative_path=cluster_product_name)
+        # initialize the parameter with None
+        parameter = None
+
+        if self.config.parameter == 'turb-dogliotti':
+            parameter = self.inversion_algos.turb_Dogliotti(self.loader.raster_bands['Red'],
+                                                            self.loader.raster_bands['Nir'])
+        elif self.config.parameter == 'spm-get':
+            parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'],
+                                                     self.loader.raster_bands['Nir'],
+                                                     self.loader.product)
+
+        elif self.config.parameter == 'chl_lins':
+            parameter = self.inversion_algos.chl_lins(self.loader.raster_bands['Red'],
+                                                      self.loader.raster_bands['RedEdg1'])
+
+        if parameter is not None:
+            # clear the parameters array and apply the Water mask, with no_data_values
+            parameter = DWutils.apply_mask(parameter, ~dw_image.water_mask, -9999)
+
+            # save the calculated parameter
+            self.saver.save_array(parameter, self.config.parameter, no_data_value=-9999)
+
+            if self.config.pdf_reports:
+                pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=self.config.parameter,
+                                                                    burn_in_array=parameter,
+                                                                    color=None,
+                                                                    fade=0.5,
+                                                                    opt_relative_path=None,
+                                                                    no_data_value=-9999))
+
+    def create_rgb_burn_in_pdf(self, product_name, burn_in_array, color=None, fade=None, opt_relative_path=None,
+                               no_data_value=0):
+
+        # create the RGB burn in image
+        red, green, blue = DWutils.rgb_burn_in(red=self.loader.raster_bands['Red'],
+                                               green=self.loader.raster_bands['Green'],
+                                               blue=self.loader.raster_bands['Blue'],
+                                               burn_in_array=burn_in_array,
+                                               color=color,
+                                               fade=fade,
+                                               no_data_value=no_data_value)
+
+        # save the RGB auxiliary tif and gets the full path filename
+        filename = self.saver.save_rgb_array(red=red * 10000,
+                                             green=green * 10000,
+                                             blue=blue * 10000,
+                                             name=product_name+'_rgb',
+                                             opt_relative_path=opt_relative_path)
 
         new_filename = filename[:-4] + '.pdf'
         translate = 'gdal_translate -outsize 600 0 -ot Byte -scale 0 2000 -of pdf ' + filename + ' ' + new_filename

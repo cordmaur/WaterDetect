@@ -1,0 +1,3 @@
+band	A_rho	C_rho
+Red	228.1	0.1641
+NIR	3078.9	0.2112

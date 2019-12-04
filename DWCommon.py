@@ -2,7 +2,13 @@ import os
 from shutil import copy
 import configparser
 import ast
+
 from sklearn.model_selection import train_test_split
+# from sklearn.preprocessing import RobustScaler
+# from sklearn.preprocessing import MaxAbsScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import QuantileTransformer
+
 from osgeo import gdal
 import numpy as np
 from pathlib import Path
@@ -17,6 +23,7 @@ class DWConfig:
     _defaults = {'reference_band': 'Red',
                  'create_composite': 'True',
                  'pdf_reports': 'False',
+                 'texture_streching': 'False',
                  'clustering_method': 'aglomerative',
                  'min_clusters': '1',
                  'max_clusters': '5',
@@ -84,6 +91,18 @@ class DWConfig:
     @property
     def pdf_reports(self):
         return self.get_option('General', 'pdf_reports', evaluate=True)
+
+    @property
+    def texture_stretching(self):
+        return self.get_option('General', 'texture_stretching', evaluate=True)
+
+    @property
+    def inversion(self):
+        return self.get_option('Inversion', 'inversion', evaluate=True)
+
+    @property
+    def parameter(self):
+        return self.get_option('Inversion', 'parameter', evaluate=False)
 
     @property
     def clustering_method(self):
@@ -217,6 +236,14 @@ class DWutils:
 
     @staticmethod
     def calc_normalized_difference(img1, img2, mask=False):
+        """
+        Calc the normalized difference of given arrays (img1 - img2)/(img1 + img2).
+        Updates the mask if any invalid numbers (ex. np.inf or np.nan) are encountered
+        :param img1: first array
+        :param img2: second array
+        :param mask: initial mask, that will be updated
+        :return: nd array filled with -9999 in the mask and the mask itself
+        """
         nd = (img1-img2) / (img1 + img2)
 
         nd[nd > 1] = 1
@@ -231,6 +258,121 @@ class DWutils:
         nd = np.ma.array(nd, mask=nd_mask, fill_value=-9999)
 
         return nd.filled(), nd.mask
+
+    @staticmethod
+    def rgb_burn_in(red, green, blue, burn_in_array, color=None, fade=1, no_data_value=-9999):
+        """
+        Burn in a mask or a specific parameter into an RGB image for visualization purposes.
+        The burn_in_array will be copied where values are different from no_data_value.
+        :param red: Original red band
+        :param green: Original green band
+        :param blue: Original blue band
+        :param burn_in_array: Values to be burnt in
+        :param no_data_value: Value to ne unconsidered
+        :param color: Tuple of color (R, G, B) to be used in the burn in
+        :param fade: Fade the RGB bands to emphasize the copied values
+        :return: RGB image bands
+        """
+
+        if color:
+            new_red = np.where(burn_in_array == no_data_value, red*fade, color[0])
+            new_green = np.where(burn_in_array == no_data_value, green*fade, color[1])
+            new_blue = np.where(burn_in_array == no_data_value, blue*fade, color[2])
+
+        else:
+            # the mask is where the value equals no_data_value
+            mask = (burn_in_array == no_data_value)
+
+            # the valid values are those outside the mask (~mask)
+            burn_in_values = burn_in_array[~mask]
+
+            # apply 2 scalers to uniform the data
+            burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])
+            # burn_in_values = MinMaxScaler((0, 0.3)).fit_transform(burn_in_values)
+
+            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
+
+            # return the scaled values to the burn_in_array
+            # burn_in_array[~mask] = burn_in_values[:, 0]
+
+            # calculate a color_ramp for these pixels
+            # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_array, limits=(0, 0.3))
+
+            # new_red = np.where(burn_in_array == no_data_value, red, rgb_burn_in_values[:, 0])
+            # new_green = np.where(burn_in_array == no_data_value, green, rgb_burn_in_values[:, 1])
+            # new_blue = np.where(burn_in_array == no_data_value, blue, rgb_burn_in_values[:, 2])
+
+            # return the scaled values to the burn_in_array
+            burn_in_array[~mask] = rgb_burn_in_values[:, 0]
+            burn_in_red = np.copy(burn_in_array)
+
+            burn_in_array[~mask] = rgb_burn_in_values[:, 1]
+            burn_in_green = np.copy(burn_in_array)
+
+            burn_in_array[~mask] = rgb_burn_in_values[:, 2]
+            burn_in_blue = np.copy(burn_in_array)
+
+            # burn in the values
+            new_red = np.where(burn_in_array == no_data_value, red*fade, burn_in_red)
+            new_green = np.where(burn_in_array == no_data_value, green*fade, burn_in_green)
+            new_blue = np.where(burn_in_array == no_data_value, blue*fade, burn_in_blue)
+
+        return new_red, new_green, new_blue
+
+    @staticmethod
+    def apply_mask(array, mask, no_data_value=-9999, clear_nan=True):
+
+        if clear_nan:
+            mask |= np.isnan(array) | np.isinf(array)
+
+        return np.where(mask == True, -9999, array)
+
+
+    @staticmethod
+    def gray2color_ramp(grey, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.), limits=(0, 1)):
+
+        # original_shape = grey.shape
+
+        # grey = grey.reshape(-1, 1)
+        # ones = np.ones_like(grey)
+
+        # create an hsv cube. the grayscale being the HUE
+        # hsv = np.stack([grey, ones, ones], axis=grey.ndim)
+
+        # from skimage import color
+        # rgb = color.hsv2rgb(hsv)
+
+        # return np.squeeze(rgb)
+
+        mid_point = np.mean(grey)
+
+        # calculate the mixture in each pixel
+        # mixture 1 is for pixels below mid point
+        mixture1 = (grey-np.min(grey))/(mid_point-np.min(grey))
+
+        # mixture 2 is for pixels above mid point
+        mixture2 = (grey-mid_point)/(np.max(grey)-mid_point)
+
+        # add dimensions to the colors to match grey ndims+1 for correct broadcasting
+        color1 = np.array(color1)
+        color2 = np.array(color2)
+        for _ in range(grey.ndim):
+            color1 = np.expand_dims(color1, axis=0)
+            color2 = np.expand_dims(color2, axis=0)
+            color3 = np.expand_dims(color3, axis=0)
+
+        # add a last dimension to mixtures arrays
+        mixture1 = mixture1[..., np.newaxis]
+        mixture2 = mixture2[..., np.newaxis]
+
+        # make the RGB color ramp between the 2 colors, based on the mixture
+        rgb_color_ramp = np.where(mixture1 < 1,
+                                  (1-mixture1)*color1 + mixture1*color2,
+                                  (1-mixture2)*color2 + mixture2*color3)
+
+        scaled_rgb_color_ramp = MinMaxScaler(limits).fit_transform(rgb_color_ramp.reshape(-1, 1))
+
+        return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
 
     @staticmethod
     def array2raster(filename, array, geo_transform, projection, nodatavalue=0):

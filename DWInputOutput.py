@@ -9,7 +9,7 @@ from DWCommon import DWutils
 class DWLoader:
 
     dicS2_THEIA = {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
-                   'Nir': 'B8', 'Nir2': 'B8A'},
+                   'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5'},
                    'suffix': '.tif', 'string': 'FRE'}
 
     dicSEN2COR = {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12'},
