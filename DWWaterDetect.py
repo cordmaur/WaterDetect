@@ -245,6 +245,7 @@ class DWWaterDetect:
                         pdf_merger.append(self.saver.output_folder.joinpath(report_name).as_posix())
 
             except Exception as err:
+                print('****** ERROR ********')
                 print(err)
 
         if pdf_merger:
