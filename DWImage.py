@@ -123,7 +123,7 @@ class DWImageClustering:
         elif self.config.clustering_method == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='average')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='ward')
 
         cluster_model.fit(data)
         return cluster_model.labels_

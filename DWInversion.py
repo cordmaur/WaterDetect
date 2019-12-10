@@ -271,6 +271,9 @@ class DWInversionAlgos:
         band, year = 'B4', '2016'
         if 'S2' in sat:
             sat = 'S2'
+        elif 'LANDSAT' in sat:
+            sat = 'L8'
+
         limit_inf, limit_sup = 0.1, 0.20
         a, c = get_coefs(str('nechad_' + year), sat=sat, rowname=band)
 
