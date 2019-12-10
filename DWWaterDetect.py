@@ -43,7 +43,8 @@ class DWWaterDetect:
         """
 
         # initialize with basic bands for MNDWI and NDWI and MBWI
-        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir', 'Mir2', 'RedEdg1', self.config.reference_band}
+        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir', 'Mir2', 'RedEdg1', 'RedEdg2',
+                           self.config.reference_band}
 
         if include_rgb:
             necessary_bands = necessary_bands.union({'Red', 'Green', 'Blue'})
@@ -263,7 +264,7 @@ class DWWaterDetect:
     def calc_inversion_parameter(self, dw_image, pdf_merger_image):
         """
         Calculate the parameter in config.parameter and saves it to the dictionary of bands.
-        That will make it easier to make graphs correlating any band with the parameter.
+        This will make it easier to make graphs correlating any band with the parameter.
         Also, checks if there are reports, then add the parameter to it.
         :return: The parameter matrix
         """
@@ -284,6 +285,11 @@ class DWWaterDetect:
         elif self.config.parameter == 'chl_lins':
             parameter = self.inversion_algos.chl_lins(self.loader.raster_bands['Red'],
                                                       self.loader.raster_bands['RedEdg1'])
+
+        elif self.config.parameter == 'aCDOM-brezonik':
+            parameter = self.inversion_algos.aCDOM_brezonik(self.loader.raster_bands['Red'],
+                                                            self.loader.raster_bands['RedEdg2'],
+                                                            self.loader.product)
 
         if parameter is not None:
             # clear the parameters array and apply the Water mask, with no_data_values
