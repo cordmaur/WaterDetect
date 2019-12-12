@@ -8,10 +8,10 @@ from shutil import copy
 from sklearn import cluster #ok
 from sklearn import metrics #ok
 from sklearn import preprocessing #ok
-from sklearn.cross_validation import cross_val_score #ok
+#from sklearn.model_selection import cross_val_score #TODO:cross_validation is deprecated, use model_selection instead
 from sklearn.decomposition import PCA #ok
-from sklearn.grid_search import GridSearchCV #ok
-from sklearn.mixture import GMM #ok
+#from sklearn.model_selection import GridSearchCV #TODO:grid_search is deprecated, use model_selection instead
+#from sklearn.mixture import GMM #TODO:deprecated: new import is sklearn.mixture.GaussianMixture
 from sklearn.model_selection import train_test_split #ok
 from sklearn.naive_bayes import GaussianNB #ok
 from sklearn.neural_network import MLPClassifier #ok
