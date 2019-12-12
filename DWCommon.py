@@ -292,11 +292,12 @@ class DWutils:
             # the valid values are those outside the mask (~mask)
             burn_in_values = burn_in_array[~mask]
 
-            # apply 2 scalers to uniform the data
-            burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])
+            # apply scalers to uniform the data
+            # burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])
             # burn_in_values = MinMaxScaler((0, 0.3)).fit_transform(burn_in_values)
 
-            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
+            # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
+            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, limits=(0,0.3))
 
             # return the scaled values to the burn_in_array
             # burn_in_array[~mask] = burn_in_values[:, 0]
@@ -335,50 +336,92 @@ class DWutils:
 
 
     @staticmethod
-    def gray2color_ramp(grey, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.), limits=(0, 1)):
+    def gray2color_ramp(grey_array, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.),
+                        min_value=0, max_value=20, limits=(0, 1)):
+        """
+        Convert a greyscale n-dimensional matrix into a rgb matrix, adding 3 dimensions to it for R, G, and B
+        The colors will be mixed
+        :param max_value: Maximum value for the color ramp, if None, we consider max(grey)
+        :param min_value: Minimum value for the color ramp, if None, we consider min(grey)
+        :param grey_array: greyscale vector/matrix
+        :param color1: Color for the minimum value
+        :param color2: Color for the mid value
+        :param color3: Color for the maximum value
+        :param limits: Final boundary limits for the RGB values
+        :return: Colored vector/matrix
+        """
 
-        # original_shape = grey.shape
+        original_shape = grey_array.shape
 
-        # grey = grey.reshape(-1, 1)
-        # ones = np.ones_like(grey)
+        grey_vector = grey_array.reshape(-1, 1)
+
+        # normaliza dentro de min e max values
+        grey_vector = (grey_vector - min_value) / (max_value - min_value)
+
+        # cut the values outside the limits of 0 and 1
+        grey_vector[grey_vector < 0] = 0
+        grey_vector[grey_vector > 1] = 1
+
+        # invert the values because the HSV scale is inverted
+        grey_vector = grey_vector * (-1) + 1
+
+        # limit the color to blue (if above 0.6 it goes to purple)
+        grey_vector = grey_vector * 0.6
+
+        # grey2 = MinMaxScaler((0, 1)).fit_transform(grey)*(-1)+1
+        # grey2 = MinMaxScaler((0, 0.6)).fit_transform(grey2)
+
+        ones = np.ones_like(grey_vector) * 0.8
 
         # create an hsv cube. the grayscale being the HUE
-        # hsv = np.stack([grey, ones, ones], axis=grey.ndim)
+        hsv = np.stack([grey_vector, ones, ones], axis=grey_vector.ndim)
 
-        # from skimage import color
-        # rgb = color.hsv2rgb(hsv)
+        from skimage import color
+        rgb = color.hsv2rgb(hsv)
+        rgb = MinMaxScaler(limits).fit_transform(rgb.squeeze().reshape(-1,1))
 
-        # return np.squeeze(rgb)
+        return rgb.reshape(-1,3)
 
-        mid_point = np.mean(grey)
-
-        # calculate the mixture in each pixel
-        # mixture 1 is for pixels below mid point
-        mixture1 = (grey-np.min(grey))/(mid_point-np.min(grey))
-
-        # mixture 2 is for pixels above mid point
-        mixture2 = (grey-mid_point)/(np.max(grey)-mid_point)
-
-        # add dimensions to the colors to match grey ndims+1 for correct broadcasting
-        color1 = np.array(color1)
-        color2 = np.array(color2)
-        for _ in range(grey.ndim):
-            color1 = np.expand_dims(color1, axis=0)
-            color2 = np.expand_dims(color2, axis=0)
-            color3 = np.expand_dims(color3, axis=0)
-
-        # add a last dimension to mixtures arrays
-        mixture1 = mixture1[..., np.newaxis]
-        mixture2 = mixture2[..., np.newaxis]
-
-        # make the RGB color ramp between the 2 colors, based on the mixture
-        rgb_color_ramp = np.where(mixture1 < 1,
-                                  (1-mixture1)*color1 + mixture1*color2,
-                                  (1-mixture2)*color2 + mixture2*color3)
-
-        scaled_rgb_color_ramp = MinMaxScaler(limits).fit_transform(rgb_color_ramp.reshape(-1, 1))
-
-        return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
+        # select maximum and minimum values for the color ramp
+        # max_value = max_value if max_value is not None else np.max(grey)
+        # min_value = min_value if min_value is not None else np.min(grey)
+        #
+        # mid_point = np.mean(grey)
+        #
+        # # calculate the mixture in each pixel
+        # # mixture 1 is for pixels below mid point
+        # mixture1 = (grey-min_value)/(mid_point-min_value)
+        #
+        # # mixture 2 is for pixels above mid point
+        # mixture2 = (grey-mid_point)/(max_value-mid_point)
+        #
+        # # get rid of mixtures above 1 and below 0
+        # mixture1[mixture1 < 0] = 0
+        # mixture1[mixture1 > 1] = 1
+        #
+        # mixture2[mixture2 < 0] = 0
+        # mixture2[mixture2 > 1] = 1
+        #
+        # # add dimensions to the colors to match grey ndims+1 for correct broadcasting
+        # color1 = np.array(color1)
+        # color2 = np.array(color2)
+        # for _ in range(grey.ndim):
+        #     color1 = np.expand_dims(color1, axis=0)
+        #     color2 = np.expand_dims(color2, axis=0)
+        #     color3 = np.expand_dims(color3, axis=0)
+        #
+        # # add a last dimension to mixtures arrays
+        # mixture1 = mixture1[..., np.newaxis]
+        # mixture2 = mixture2[..., np.newaxis]
+        #
+        # # make the RGB color ramp between the 2 colors, based on the mixture
+        # rgb_color_ramp = np.where(mixture1 < 1,
+        #                           (1-mixture1)*color1 + mixture1*color2,
+        #                           (1-mixture2)*color2 + mixture2*color3)
+        #
+        # scaled_rgb_color_ramp = MinMaxScaler(limits).fit_transform(rgb_color_ramp.reshape(-1, 1))
+        #
+        # return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
 
     @staticmethod
     def array2raster(filename, array, geo_transform, projection, nodatavalue=0):
