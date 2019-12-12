@@ -244,7 +244,13 @@ class DWutils:
         :param mask: initial mask, that will be updated
         :return: nd array filled with -9999 in the mask and the mask itself
         """
-        nd = (img1-img2) / (img1 + img2)
+
+        # if any of the bands is set to zero in the pixel, makes a small shift upwards, as proposed by olivier hagole
+        # https://github.com/olivierhagolle/modified_NDVI
+        nd = np.where((img1 > 0) & (img2 > 0), (img1-img2) / (img1 + img2),
+                      (img1+0.005-img2+0.005) / (img1+0.005 + img2+0.005))
+
+        # nd = (img1-img2) / (img1 + img2)
 
         nd[nd > 1] = 1
         nd[nd < -1] = -1

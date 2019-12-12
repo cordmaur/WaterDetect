@@ -72,7 +72,7 @@ class DWInversionAlgos:
                 continue
         return
 
-    def aCDOM_brezonik(self, b1, b2, sat='S2'):
+    def aCDOM_brezonik(self, b1_old, b2_old, sat='S2'):
         """Computes CDOM absorption coefficient (@440 nm).
 
         after Brezonik et al., 2015.
@@ -84,6 +84,11 @@ class DWInversionAlgos:
         Returns:
             CDOM absorption coefficient (@440 nm) band.
         """
+
+        b1 = np.where((b1_old > 0) & (b2_old > 0), b1_old, b1_old+0.005)
+        b2 = np.where((b1_old > 0) & (b2_old > 0), b2_old, b2_old+0.005)
+
+
         np.warnings.filterwarnings('ignore')
         if 'S2' in sat:
             a1, a2, = 1.872, -0.830
