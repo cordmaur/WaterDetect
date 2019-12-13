@@ -300,12 +300,24 @@ class DWWaterDetect:
             self.saver.save_array(parameter, self.config.parameter, no_data_value=-9999)
 
             if self.config.pdf_reports:
+                pdf_merger_image.append(self.create_colorbar_pdf(product_name='colorbar',
+                                                                 colormap='viridis',
+                                                                 min_value=0,
+                                                                 max_value=20,
+                                                                 opt_relative_path=None))
+
                 pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=self.config.parameter,
                                                                     burn_in_array=parameter,
                                                                     color=None,
                                                                     fade=0.5,
                                                                     opt_relative_path=None,
                                                                     no_data_value=-9999))
+
+
+    def create_colorbar_pdf(self, product_name, colormap, min_value, max_value, opt_relative_path=None):
+        filename = self.saver.output_folder.joinpath(product_name + '.pdf')
+        DWutils.create_colorbar_pdf(filename, colormap, min_value, max_value)
+        return filename.as_posix()
 
     def create_rgb_burn_in_pdf(self, product_name, burn_in_array, color=None, fade=None, opt_relative_path=None,
                                no_data_value=0):

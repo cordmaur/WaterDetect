@@ -297,7 +297,7 @@ class DWutils:
             # burn_in_values = MinMaxScaler((0, 0.3)).fit_transform(burn_in_values)
 
             # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
-            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, limits=(0,0.3))
+            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, limits=(0,0.3))*0.3
 
             # return the scaled values to the burn_in_array
             # burn_in_array[~mask] = burn_in_values[:, 0]
@@ -351,36 +351,53 @@ class DWutils:
         :return: Colored vector/matrix
         """
 
-        original_shape = grey_array.shape
-
-        grey_vector = grey_array.reshape(-1, 1)
+        # Get the color map by name:
+        cm = plt.get_cmap('viridis')
 
         # normaliza dentro de min e max values
-        grey_vector = (grey_vector - min_value) / (max_value - min_value)
+        grey_vector = (grey_array - min_value) / (max_value - min_value)
 
         # cut the values outside the limits of 0 and 1
         grey_vector[grey_vector < 0] = 0
         grey_vector[grey_vector > 1] = 1
 
-        # invert the values because the HSV scale is inverted
-        grey_vector = grey_vector * (-1) + 1
+        # Apply the colormap like a function to any array:
+        colored_image = cm(grey_vector)
 
-        # limit the color to blue (if above 0.6 it goes to purple)
-        grey_vector = grey_vector * 0.6
+        return colored_image[:,0:3]
+        # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
+        # But we want to convert to RGB in uint8 and save it:
 
-        # grey2 = MinMaxScaler((0, 1)).fit_transform(grey)*(-1)+1
-        # grey2 = MinMaxScaler((0, 0.6)).fit_transform(grey2)
-
-        ones = np.ones_like(grey_vector) * 0.8
-
-        # create an hsv cube. the grayscale being the HUE
-        hsv = np.stack([grey_vector, ones, ones], axis=grey_vector.ndim)
-
-        from skimage import color
-        rgb = color.hsv2rgb(hsv)
-        rgb = MinMaxScaler(limits).fit_transform(rgb.squeeze().reshape(-1,1))
-
-        return rgb.reshape(-1,3)
+        # original_shape = grey_array.shape
+        #
+        # grey_vector = grey_array.reshape(-1, 1)
+        #
+        # # normaliza dentro de min e max values
+        # grey_vector = (grey_vector - min_value) / (max_value - min_value)
+        #
+        # # cut the values outside the limits of 0 and 1
+        # grey_vector[grey_vector < 0] = 0
+        # grey_vector[grey_vector > 1] = 1
+        #
+        # # invert the values because the HSV scale is inverted
+        # grey_vector = grey_vector * (-1) + 1
+        #
+        # # limit the color to blue (if above 0.6 it goes to purple)
+        # grey_vector = grey_vector * 0.6
+        #
+        # # grey2 = MinMaxScaler((0, 1)).fit_transform(grey)*(-1)+1
+        # # grey2 = MinMaxScaler((0, 0.6)).fit_transform(grey2)
+        #
+        # ones = np.ones_like(grey_vector) * 0.8
+        #
+        # # create an hsv cube. the grayscale being the HUE
+        # hsv = np.stack([grey_vector, ones, ones], axis=grey_vector.ndim)
+        #
+        # from skimage import color
+        # rgb = color.hsv2rgb(hsv)
+        # rgb = MinMaxScaler(limits).fit_transform(rgb.squeeze().reshape(-1,1))
+        #
+        # return rgb.reshape(-1,3)
 
         # select maximum and minimum values for the color ramp
         # max_value = max_value if max_value is not None else np.max(grey)
@@ -590,3 +607,45 @@ class DWutils:
             bands_dict.update({band: bands_array[:,:,i]})
 
         return bands_dict
+
+
+    @staticmethod
+    def create_colorbar_pdf(product_name, colormap, min_value, max_value):
+        # Make a figure and axes with dimensions as desired.
+        fig = plt.figure(figsize=(4, 1))
+        ax1 = fig.add_axes([0.05, 0.50, 0.90, 0.15])
+
+        # Set the colormap and norm to correspond to the data for which
+        # the colorbar will be used.
+
+        norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+        #
+        # cdict = {'red': ((0.0, 0.0, 0.0),
+        #                  (0.5, 0.0, 0.0),
+        #                  (1.0, 1.0, 1.0)),
+        #
+        #          'green': ((0.0, 0.0, 0.0),
+        #                    (0.5, 0.8, 0.8),
+        #                    (1.0, 0.0, 0.0)),
+        #
+        #          'blue': ((0.0, 0.6, 1.0),
+        #                   (0.5, 0.0, 0.0),
+        #                   (1.0, 0.0, 0.0))}
+        #
+        # cmap = mpl.colors.LinearSegmentedColormap('custom', cdict)
+
+        cmap = plt.get_cmap(colormap)
+
+        # =========================
+
+        # ColorbarBase derives from ScalarMappable and puts a colorbar
+        # in a specified axes, so it has everything needed for a
+        # standalone colorbar.  There are many more kwargs, but the
+        # following gives a basic continuous colorbar with ticks
+        # and labels.
+        cb1 = matplotlib.colorbar.ColorbarBase(ax1, cmap=cmap,
+                                               norm=norm,
+                                               orientation='horizontal')
+        cb1.set_label('Legenda')
+
+        plt.savefig(product_name)
