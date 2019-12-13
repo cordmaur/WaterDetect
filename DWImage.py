@@ -26,6 +26,8 @@ class DWImageClustering:
         self.water_mask = None
         self.best_k = None
 
+        self._product_name = None
+
         return
 
     @staticmethod
@@ -376,6 +378,13 @@ class DWImageClustering:
             bands_index.append(bands_keys.index(key))
 
         return data[:, bands_index]
+
+    @property
+    def product_name(self):
+        if self._product_name is None:
+            self._product_name = self.create_product_name()
+
+        return self._product_name
 
     def create_product_name(self):
 

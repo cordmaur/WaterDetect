@@ -24,6 +24,7 @@ class DWConfig:
                  'create_composite': 'True',
                  'pdf_reports': 'False',
                  'texture_streching': 'False',
+                 'maximum_invalid': '0.8',
                  'clustering_method': 'aglomerative',
                  'min_clusters': '1',
                  'max_clusters': '5',
@@ -102,7 +103,34 @@ class DWConfig:
 
     @property
     def parameter(self):
-        return self.get_option('Inversion', 'parameter', evaluate=False)
+        if self.inversion:
+            return self.get_option('Inversion', 'parameter', evaluate=False)
+        else:
+            return ''
+
+    @property
+    def min_param_value(self):
+        return self.get_option('Inversion', 'min_param_value', evaluate=True)
+
+    @property
+    def max_param_value(self):
+        return self.get_option('Inversion', 'max_param_value', evaluate=True)
+
+    @property
+    def colormap(self):
+        return self.get_option('Inversion', 'colormap', evaluate=False)
+
+    @property
+    def colormap(self):
+        return self.get_option('Inversion', 'colormap', evaluate=False)
+
+    @property
+    def uniform_distribution(self):
+        return self.get_option('Inversion', 'uniform_distribution', evaluate=True)
+
+    @property
+    def maximum_invalid(self):
+        return self.get_option('General', 'maximum_invalid', evaluate=True)
 
     @property
     def clustering_method(self):
@@ -152,6 +180,10 @@ class DWConfig:
     @property
     def max_clusters(self):
         return self.get_option('Clustering', 'max_clusters', evaluate=True)
+
+    @property
+    def plot_graphs(self):
+        return self.get_option('Graphs', 'plot_graphs', evaluate=True)
 
     @property
     def graphs_bands(self):
@@ -266,10 +298,15 @@ class DWutils:
         return nd.filled(), nd.mask
 
     @staticmethod
-    def rgb_burn_in(red, green, blue, burn_in_array, color=None, fade=1, no_data_value=-9999):
+    def rgb_burn_in(red, green, blue, burn_in_array, color=None, min_value=None, max_value=None, colormap='viridis',
+                    fade=1, uniform_distribution=False, no_data_value=-9999):
         """
         Burn in a mask or a specific parameter into an RGB image for visualization purposes.
         The burn_in_array will be copied where values are different from no_data_value.
+        :param uniform_distribution: convert the input values in a uniform histogram
+        :param colormap: matplotlib colormap (string) to create the RGB ramp
+        :param max_value: maximum value
+        :param min_value: minimum value
         :param red: Original red band
         :param green: Original green band
         :param blue: Original blue band
@@ -293,11 +330,13 @@ class DWutils:
             burn_in_values = burn_in_array[~mask]
 
             # apply scalers to uniform the data
-            # burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])
+            if uniform_distribution:
+                burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])[:, 0]
             # burn_in_values = MinMaxScaler((0, 0.3)).fit_transform(burn_in_values)
 
             # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
-            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, limits=(0,0.3))*0.3
+            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, min_value=min_value, max_value=max_value,
+                                                         colormap=colormap, limits=(0, 0.14))
 
             # return the scaled values to the burn_in_array
             # burn_in_array[~mask] = burn_in_values[:, 0]
@@ -337,7 +376,7 @@ class DWutils:
 
     @staticmethod
     def gray2color_ramp(grey_array, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.),
-                        min_value=0, max_value=20, limits=(0, 1)):
+                        min_value=0, max_value=20, colormap='viridis', limits=(0, 1)):
         """
         Convert a greyscale n-dimensional matrix into a rgb matrix, adding 3 dimensions to it for R, G, and B
         The colors will be mixed
@@ -352,7 +391,7 @@ class DWutils:
         """
 
         # Get the color map by name:
-        cm = plt.get_cmap('viridis')
+        cm = plt.get_cmap(colormap)
 
         # normaliza dentro de min e max values
         grey_vector = (grey_array - min_value) / (max_value - min_value)
@@ -364,7 +403,8 @@ class DWutils:
         # Apply the colormap like a function to any array:
         colored_image = cm(grey_vector)
 
-        return colored_image[:,0:3]
+        return MinMaxScaler(limits).fit_transform(colored_image[:, 0:3])
+
         # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
         # But we want to convert to RGB in uint8 and save it:
 
@@ -610,7 +650,7 @@ class DWutils:
 
 
     @staticmethod
-    def create_colorbar_pdf(product_name, colormap, min_value, max_value):
+    def create_colorbar_pdf(product_name, title, colormap, min_value, max_value):
         # Make a figure and axes with dimensions as desired.
         fig = plt.figure(figsize=(4, 1))
         ax1 = fig.add_axes([0.05, 0.50, 0.90, 0.15])
@@ -646,6 +686,6 @@ class DWutils:
         cb1 = matplotlib.colorbar.ColorbarBase(ax1, cmap=cmap,
                                                norm=norm,
                                                orientation='horizontal')
-        cb1.set_label('Legenda')
+        cb1.set_label(title + ' Legend')
 
         plt.savefig(product_name)
