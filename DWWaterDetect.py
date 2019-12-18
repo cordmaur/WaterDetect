@@ -121,110 +121,112 @@ class DWWaterDetect:
 
     def run(self):
 
+        dw_image = None
+
         # if pdf_report is true, creates a FileMerger to assembly the FullReport
         pdf_merger = PdfFileMerger() if self.config.pdf_reports else None
 
         for image in self.loader:
 
             # wrap the clustering loop into a try_catch to avoid single image problems
-            try:
-                image = self.loader
+#            try:
+            image = self.loader
 
-                # todo: use the given output folder to create a temporary folder and simplify the clipping
+            # todo: use the given output folder to create a temporary folder and simplify the clipping
 
-                # open image into DWLoader class, passing the reference band
-                image.open_current_image(ref_band_name=self.config.reference_band)
+            # open image into DWLoader class, passing the reference band
+            image.open_current_image(ref_band_name=self.config.reference_band)
 
-                # prepare the saver with output folder and transformations
-                self.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
+            # prepare the saver with output folder and transformations
+            self.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
 
-                # if there is a shape_file specified, clip necessary bands and then update the output projection
-                if image.shape_file:
-                    image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
-                                     self.saver.temp_dir)
-                    self.saver.update_geo_transform(image.geo_transform, image.projection)
+            # if there is a shape_file specified, clip necessary bands and then update the output projection
+            if image.shape_file:
+                image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
+                                 self.saver.temp_dir)
+                self.saver.update_geo_transform(image.geo_transform, image.projection)
 
-                # create a composite R G B in the output folder
-                if self.config.create_composite or self.config.pdf_reports:
-                    composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
-                                                              self.config.pdf_reports)
-                else:
-                    composite_name = None
-
-                # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
-                image.load_raster_bands(self.necessary_bands(include_rgb=False))
-
-                # load the masks specified in the config
-                image.load_masks(self.config.get_masks_list(image.product))
-
-                # Test if there is enough valid pixels in the clipped images
-                if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.config.maximum_invalid:
-                    print('Not enough valid pixels in the image area')
-                    continue
-
-                # calc the necessary indexes and update the image's mask
-                self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=True)
-
-                ##################################################################
-                if self.config.texture_stretching:
-                    self.calc_texture(image, save_texture=True)
-                # The final solution will be to push the texture calculation into DWImage
-                # if there is a flag (use texture_stretch), we compute using the same bands, streched by the texture
-
-                # to calculate the otsu mask, we could stop here, or include otsu in a bands combination, like:
-                # ['otsu', 'mndwi'] to indicate the band to apply the ostu.
-
-                # print (STOP)
-                ##################################################################
-
-                # loop through the bands combinations to make the clusters
-                for band_combination in self.config.clustering_bands:
-
-                    print('Calculating clusters for the following combination of bands:')
-                    print(band_combination)
-
-                    # if pdf_reports, create a FileMerger for this specific band combination
-                    if self.config.pdf_reports:
-                        pdf_merger_image = PdfFileMerger()
-                        pdf_merger_image.append(composite_name + '.pdf')
-                    else:
-                        pdf_merger_image = None
-
-                    # create a dw_image object with the water mask and all the results
-                    dw_image = self.create_water_mask(band_combination, pdf_merger_image)
-
-                    # calc the inversion parameter and save it to self.rasterbands in the dictionary
-                    if self.config.inversion:
-                        self.calc_inversion_parameter(dw_image, pdf_merger_image)
-
-                    # save the graphs
-                    if self.config.plot_graphs:
-                        self.save_graphs(dw_image, pdf_merger_image)
-
-                    if self.config.pdf_reports:
-                        pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
-                                                           self.config.parameter,
-                                                           pdf_merger_image))
-
-            except Exception as err:
-                print('****** ERROR ********')
-                print(err)
-
-        if pdf_merger:
-            if len(self.config.clustering_bands) == 1:
-                report_name = 'FullReport_' + dw_image.product_name + '_' + self.config.parameter + '.pdf'
+            # create a composite R G B in the output folder
+            if self.config.create_composite or self.config.pdf_reports:
+                composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
+                                                          self.config.pdf_reports)
             else:
-                report_name = 'FullReport_' + self.config.parameter + '.pdf'
+                composite_name = None
 
-            with open(self.saver.base_output_folder.joinpath(self.saver.area_name).
-                      joinpath(report_name), 'wb') as file_obj:
-                pdf_merger.write(file_obj)
+            # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
+            image.load_raster_bands(self.necessary_bands(include_rgb=False))
+
+            # load the masks specified in the config
+            image.load_masks(self.config.get_masks_list(image.product))
+
+            # Test if there is enough valid pixels in the clipped images
+            if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.config.maximum_invalid:
+                print('Not enough valid pixels in the image area')
+                continue
+
+            # calc the necessary indexes and update the image's mask
+            self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=True)
+
+            ##################################################################
+            if self.config.texture_stretching:
+                self.calc_texture(image, save_texture=True)
+            # The final solution will be to push the texture calculation into DWImage
+            # if there is a flag (use texture_stretch), we compute using the same bands, streched by the texture
+
+            # to calculate the otsu mask, we could stop here, or include otsu in a bands combination, like:
+            # ['otsu', 'mndwi'] to indicate the band to apply the ostu.
+
+            # print (STOP)
+            ##################################################################
+
+            # loop through the bands combinations to make the clusters
+            for band_combination in self.config.clustering_bands:
+
+                print('Calculating clusters for the following combination of bands:')
+                print(band_combination)
+
+                # if pdf_reports, create a FileMerger for this specific band combination
+                if self.config.pdf_reports:
+                    pdf_merger_image = PdfFileMerger()
+                    pdf_merger_image.append(composite_name + '.pdf')
+                else:
+                    pdf_merger_image = None
+
+                # create a dw_image object with the water mask and all the results
+                dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+
+                # calc the inversion parameter and save it to self.rasterbands in the dictionary
+                if self.config.inversion:
+                    self.calc_inversion_parameter(dw_image, pdf_merger_image)
+
+                # save the graphs
+                if self.config.plot_graphs:
+                    self.save_graphs(dw_image, pdf_merger_image)
+
+                if self.config.pdf_reports:
+                    pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
+                                                       self.config.parameter,
+                                                       pdf_merger_image,
+                                                       self.saver.output_folder))
+
+            # except Exception as err:
+            #     print('****** ERROR ********')
+            #     print(err)
+
+        if pdf_merger is not None and dw_image is not None:
+            if len(self.config.clustering_bands) == 1:
+                report_name = 'FullReport_' + dw_image.product_name + '_' + self.config.parameter
+            else:
+                report_name = 'FullReport_' + self.config.parameter
+
+            self.save_report(report_name, pdf_merger, self.saver.base_output_folder.joinpath(self.saver.area_name))
 
         return
 
     # save the report and return the full path as posix
-    def save_report(self, report_name, pdf_merger):
-        filename = self.saver.output_folder.joinpath(report_name + '.pdf')
+    def save_report(self, report_name, pdf_merger, folder):
+
+        filename = folder.joinpath(report_name + '.pdf')
 
         with open(filename, 'wb') as file_obj:
             pdf_merger.write(file_obj)
@@ -241,6 +243,7 @@ class DWWaterDetect:
         # for the PDF writer, we need to pass all the information needed for the title
         # so, we will produce the graph title = Area + Date + Product
         graph_title = self.saver.area_name + ' ' + self.saver.base_name + dw_image.product_name
+
         DWutils.plot_graphs(self.loader.raster_bands, self.config.graphs_bands, dw_image.cluster_matrix,
                             graph_basename, graph_title, self.loader.invalid_mask, 1000, pdf_merger_image)
 
@@ -300,6 +303,11 @@ class DWWaterDetect:
                                                             self.loader.raster_bands['RedEdg2'],
                                                             self.loader.product)
 
+        elif self.config.parameter == 'chl_giteslon':
+            parameter = self.inversion_algos.chl_giteslon(self.loader.raster_bands['Red'],
+                                                          self.loader.raster_bands['RedEdg1'],
+                                                          self.loader.raster_bands['RedEdg2'])
+
         if parameter is not None:
             # clear the parameters array and apply the Water mask, with no_data_values
             parameter = DWutils.apply_mask(parameter, ~dw_image.water_mask, -9999)
@@ -319,7 +327,7 @@ class DWWaterDetect:
                 pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=self.config.parameter,
                                                                     burn_in_array=parameter,
                                                                     color=None,
-                                                                    fade=0.5,
+                                                                    fade=0.8,
                                                                     min_value=min_value,
                                                                     max_value=max_value,
                                                                     opt_relative_path=None,
@@ -333,11 +341,18 @@ class DWWaterDetect:
 
         min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
         max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
-        return max_value, min_value
+        return max_value*1.1, min_value*0.8
 
     def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
         filename = self.saver.output_folder.joinpath(product_name + '.pdf')
-        DWutils.create_colorbar_pdf(filename, self.config.parameter, colormap, min_value, max_value)
+
+        DWutils.create_colorbar_pdf(product_name=filename,
+                                    title=self.saver.area_name + ' ' + self.saver.base_name,
+                                    label=self.config.parameter + ' ' + self.config.parameter_unit,
+                                    colormap=colormap,
+                                    min_value=min_value,
+                                    max_value=max_value)
+
         return filename.as_posix()
 
     def create_rgb_burn_in_pdf(self, product_name, burn_in_array, color=None, min_value=None, max_value=None,

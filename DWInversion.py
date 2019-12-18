@@ -154,6 +154,14 @@ class DWInversionAlgos:
         chl = aphy / aphy_star
         return chl
 
+    def chl_giteslon(self, rho_red, rho_rededge1, rho_rededge2):
+
+        chl = 23.1 + 117.4*(1/rho_red - 1/rho_rededge1)*rho_rededge2
+        chl = np.where(chl < 0, self.nodata, chl)
+
+        return chl
+
+
     def chl_lins(self, rho_red, rho_rededge):
         #TODO gerer homogeneisation resolution en entrée (20m) et autres coefs
         """Compute Chlorophyll concentration for turbid waters from red and rededge reflectances

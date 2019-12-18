@@ -40,6 +40,11 @@ class DWConfig:
                  'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]"
                  }
 
+    _units = {'turb-dogliotti': 'FNU',
+              'spm-get': 'mg/l',
+              'chl_lins': 'mg/m^3',
+              'aCDOM-brezonik': 'Absorption Coef'}
+
     def __init__(self, config_file=None):
 
         self.config = self.load_config_file(config_file)
@@ -107,6 +112,11 @@ class DWConfig:
             return self.get_option('Inversion', 'parameter', evaluate=False)
         else:
             return ''
+
+    @property
+    def parameter_unit(self):
+
+        return self._units[self.parameter]
 
     @property
     def min_param_value(self):
@@ -336,7 +346,7 @@ class DWutils:
 
             # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
             rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, min_value=min_value, max_value=max_value,
-                                                         colormap=colormap, limits=(0, 0.14))
+                                                         colormap=colormap, limits=(0, 0.25))
 
             # return the scaled values to the burn_in_array
             # burn_in_array[~mask] = burn_in_values[:, 0]
@@ -650,7 +660,7 @@ class DWutils:
 
 
     @staticmethod
-    def create_colorbar_pdf(product_name, title, colormap, min_value, max_value):
+    def create_colorbar_pdf(product_name, title, label, colormap, min_value, max_value):
         # Make a figure and axes with dimensions as desired.
         fig = plt.figure(figsize=(4, 1))
         ax1 = fig.add_axes([0.05, 0.50, 0.90, 0.15])
@@ -686,6 +696,7 @@ class DWutils:
         cb1 = matplotlib.colorbar.ColorbarBase(ax1, cmap=cmap,
                                                norm=norm,
                                                orientation='horizontal')
-        cb1.set_label(title + ' Legend')
+        ax1.set_title(title)
+        cb1.set_label('Legend: ' + label)
 
         plt.savefig(product_name)
