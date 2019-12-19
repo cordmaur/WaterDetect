@@ -43,6 +43,7 @@ class DWConfig:
     _units = {'turb-dogliotti': 'FNU',
               'spm-get': 'mg/l',
               'chl_lins': 'mg/m^3',
+              'chl_giteslon': 'mg/m^3',
               'aCDOM-brezonik': 'Absorption Coef'}
 
     def __init__(self, config_file=None):
