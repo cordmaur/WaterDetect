@@ -24,6 +24,7 @@ class DWConfig:
                  'create_composite': 'True',
                  'pdf_reports': 'False',
                  'texture_streching': 'False',
+                 'maximum_invalid': '0.8',
                  'clustering_method': 'aglomerative',
                  'min_clusters': '1',
                  'max_clusters': '5',
@@ -38,6 +39,12 @@ class DWConfig:
                  'clustering_bands': "[['ndwi', 'Nir']]",
                  'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]"
                  }
+
+    _units = {'turb-dogliotti': 'FNU',
+              'spm-get': 'mg/l',
+              'chl_lins': 'mg/m^3',
+              'chl_giteslon': 'mg/m^3',
+              'aCDOM-brezonik': 'Absorption Coef'}
 
     def __init__(self, config_file=None):
 
@@ -102,7 +109,39 @@ class DWConfig:
 
     @property
     def parameter(self):
-        return self.get_option('Inversion', 'parameter', evaluate=False)
+        if self.inversion:
+            return self.get_option('Inversion', 'parameter', evaluate=False)
+        else:
+            return ''
+
+    @property
+    def parameter_unit(self):
+
+        return self._units[self.parameter]
+
+    @property
+    def min_param_value(self):
+        return self.get_option('Inversion', 'min_param_value', evaluate=True)
+
+    @property
+    def max_param_value(self):
+        return self.get_option('Inversion', 'max_param_value', evaluate=True)
+
+    @property
+    def colormap(self):
+        return self.get_option('Inversion', 'colormap', evaluate=False)
+
+    @property
+    def colormap(self):
+        return self.get_option('Inversion', 'colormap', evaluate=False)
+
+    @property
+    def uniform_distribution(self):
+        return self.get_option('Inversion', 'uniform_distribution', evaluate=True)
+
+    @property
+    def maximum_invalid(self):
+        return self.get_option('General', 'maximum_invalid', evaluate=True)
 
     @property
     def clustering_method(self):
@@ -152,6 +191,10 @@ class DWConfig:
     @property
     def max_clusters(self):
         return self.get_option('Clustering', 'max_clusters', evaluate=True)
+
+    @property
+    def plot_graphs(self):
+        return self.get_option('Graphs', 'plot_graphs', evaluate=True)
 
     @property
     def graphs_bands(self):
@@ -266,10 +309,15 @@ class DWutils:
         return nd.filled(), nd.mask
 
     @staticmethod
-    def rgb_burn_in(red, green, blue, burn_in_array, color=None, fade=1, no_data_value=-9999):
+    def rgb_burn_in(red, green, blue, burn_in_array, color=None, min_value=None, max_value=None, colormap='viridis',
+                    fade=1, uniform_distribution=False, no_data_value=-9999):
         """
         Burn in a mask or a specific parameter into an RGB image for visualization purposes.
         The burn_in_array will be copied where values are different from no_data_value.
+        :param uniform_distribution: convert the input values in a uniform histogram
+        :param colormap: matplotlib colormap (string) to create the RGB ramp
+        :param max_value: maximum value
+        :param min_value: minimum value
         :param red: Original red band
         :param green: Original green band
         :param blue: Original blue band
@@ -292,11 +340,14 @@ class DWutils:
             # the valid values are those outside the mask (~mask)
             burn_in_values = burn_in_array[~mask]
 
-            # apply 2 scalers to uniform the data
-            burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])
+            # apply scalers to uniform the data
+            if uniform_distribution:
+                burn_in_values = QuantileTransformer().fit_transform(burn_in_values[:, np.newaxis])[:, 0]
             # burn_in_values = MinMaxScaler((0, 0.3)).fit_transform(burn_in_values)
 
-            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
+            # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
+            rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, min_value=min_value, max_value=max_value,
+                                                         colormap=colormap, limits=(0, 0.25))
 
             # return the scaled values to the burn_in_array
             # burn_in_array[~mask] = burn_in_values[:, 0]
@@ -335,50 +386,110 @@ class DWutils:
 
 
     @staticmethod
-    def gray2color_ramp(grey, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.), limits=(0, 1)):
+    def gray2color_ramp(grey_array, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.),
+                        min_value=0, max_value=20, colormap='viridis', limits=(0, 1)):
+        """
+        Convert a greyscale n-dimensional matrix into a rgb matrix, adding 3 dimensions to it for R, G, and B
+        The colors will be mixed
+        :param max_value: Maximum value for the color ramp, if None, we consider max(grey)
+        :param min_value: Minimum value for the color ramp, if None, we consider min(grey)
+        :param grey_array: greyscale vector/matrix
+        :param color1: Color for the minimum value
+        :param color2: Color for the mid value
+        :param color3: Color for the maximum value
+        :param limits: Final boundary limits for the RGB values
+        :return: Colored vector/matrix
+        """
 
-        # original_shape = grey.shape
+        # Get the color map by name:
+        cm = plt.get_cmap(colormap)
 
-        # grey = grey.reshape(-1, 1)
-        # ones = np.ones_like(grey)
+        # normaliza dentro de min e max values
+        grey_vector = (grey_array - min_value) / (max_value - min_value)
 
-        # create an hsv cube. the grayscale being the HUE
-        # hsv = np.stack([grey, ones, ones], axis=grey.ndim)
+        # cut the values outside the limits of 0 and 1
+        grey_vector[grey_vector < 0] = 0
+        grey_vector[grey_vector > 1] = 1
 
+        # Apply the colormap like a function to any array:
+        colored_image = cm(grey_vector)
+
+        return MinMaxScaler(limits).fit_transform(colored_image[:, 0:3])
+
+        # Obtain a 4-channel image (R,G,B,A) in float [0, 1]
+        # But we want to convert to RGB in uint8 and save it:
+
+        # original_shape = grey_array.shape
+        #
+        # grey_vector = grey_array.reshape(-1, 1)
+        #
+        # # normaliza dentro de min e max values
+        # grey_vector = (grey_vector - min_value) / (max_value - min_value)
+        #
+        # # cut the values outside the limits of 0 and 1
+        # grey_vector[grey_vector < 0] = 0
+        # grey_vector[grey_vector > 1] = 1
+        #
+        # # invert the values because the HSV scale is inverted
+        # grey_vector = grey_vector * (-1) + 1
+        #
+        # # limit the color to blue (if above 0.6 it goes to purple)
+        # grey_vector = grey_vector * 0.6
+        #
+        # # grey2 = MinMaxScaler((0, 1)).fit_transform(grey)*(-1)+1
+        # # grey2 = MinMaxScaler((0, 0.6)).fit_transform(grey2)
+        #
+        # ones = np.ones_like(grey_vector) * 0.8
+        #
+        # # create an hsv cube. the grayscale being the HUE
+        # hsv = np.stack([grey_vector, ones, ones], axis=grey_vector.ndim)
+        #
         # from skimage import color
         # rgb = color.hsv2rgb(hsv)
+        # rgb = MinMaxScaler(limits).fit_transform(rgb.squeeze().reshape(-1,1))
+        #
+        # return rgb.reshape(-1,3)
 
-        # return np.squeeze(rgb)
-
-        mid_point = np.mean(grey)
-
-        # calculate the mixture in each pixel
-        # mixture 1 is for pixels below mid point
-        mixture1 = (grey-np.min(grey))/(mid_point-np.min(grey))
-
-        # mixture 2 is for pixels above mid point
-        mixture2 = (grey-mid_point)/(np.max(grey)-mid_point)
-
-        # add dimensions to the colors to match grey ndims+1 for correct broadcasting
-        color1 = np.array(color1)
-        color2 = np.array(color2)
-        for _ in range(grey.ndim):
-            color1 = np.expand_dims(color1, axis=0)
-            color2 = np.expand_dims(color2, axis=0)
-            color3 = np.expand_dims(color3, axis=0)
-
-        # add a last dimension to mixtures arrays
-        mixture1 = mixture1[..., np.newaxis]
-        mixture2 = mixture2[..., np.newaxis]
-
-        # make the RGB color ramp between the 2 colors, based on the mixture
-        rgb_color_ramp = np.where(mixture1 < 1,
-                                  (1-mixture1)*color1 + mixture1*color2,
-                                  (1-mixture2)*color2 + mixture2*color3)
-
-        scaled_rgb_color_ramp = MinMaxScaler(limits).fit_transform(rgb_color_ramp.reshape(-1, 1))
-
-        return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
+        # select maximum and minimum values for the color ramp
+        # max_value = max_value if max_value is not None else np.max(grey)
+        # min_value = min_value if min_value is not None else np.min(grey)
+        #
+        # mid_point = np.mean(grey)
+        #
+        # # calculate the mixture in each pixel
+        # # mixture 1 is for pixels below mid point
+        # mixture1 = (grey-min_value)/(mid_point-min_value)
+        #
+        # # mixture 2 is for pixels above mid point
+        # mixture2 = (grey-mid_point)/(max_value-mid_point)
+        #
+        # # get rid of mixtures above 1 and below 0
+        # mixture1[mixture1 < 0] = 0
+        # mixture1[mixture1 > 1] = 1
+        #
+        # mixture2[mixture2 < 0] = 0
+        # mixture2[mixture2 > 1] = 1
+        #
+        # # add dimensions to the colors to match grey ndims+1 for correct broadcasting
+        # color1 = np.array(color1)
+        # color2 = np.array(color2)
+        # for _ in range(grey.ndim):
+        #     color1 = np.expand_dims(color1, axis=0)
+        #     color2 = np.expand_dims(color2, axis=0)
+        #     color3 = np.expand_dims(color3, axis=0)
+        #
+        # # add a last dimension to mixtures arrays
+        # mixture1 = mixture1[..., np.newaxis]
+        # mixture2 = mixture2[..., np.newaxis]
+        #
+        # # make the RGB color ramp between the 2 colors, based on the mixture
+        # rgb_color_ramp = np.where(mixture1 < 1,
+        #                           (1-mixture1)*color1 + mixture1*color2,
+        #                           (1-mixture2)*color2 + mixture2*color3)
+        #
+        # scaled_rgb_color_ramp = MinMaxScaler(limits).fit_transform(rgb_color_ramp.reshape(-1, 1))
+        #
+        # return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
 
     @staticmethod
     def array2raster(filename, array, geo_transform, projection, nodatavalue=0):
@@ -547,3 +658,46 @@ class DWutils:
             bands_dict.update({band: bands_array[:,:,i]})
 
         return bands_dict
+
+
+    @staticmethod
+    def create_colorbar_pdf(product_name, title, label, colormap, min_value, max_value):
+        # Make a figure and axes with dimensions as desired.
+        fig = plt.figure(figsize=(4, 1))
+        ax1 = fig.add_axes([0.05, 0.50, 0.90, 0.15])
+
+        # Set the colormap and norm to correspond to the data for which
+        # the colorbar will be used.
+
+        norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+        #
+        # cdict = {'red': ((0.0, 0.0, 0.0),
+        #                  (0.5, 0.0, 0.0),
+        #                  (1.0, 1.0, 1.0)),
+        #
+        #          'green': ((0.0, 0.0, 0.0),
+        #                    (0.5, 0.8, 0.8),
+        #                    (1.0, 0.0, 0.0)),
+        #
+        #          'blue': ((0.0, 0.6, 1.0),
+        #                   (0.5, 0.0, 0.0),
+        #                   (1.0, 0.0, 0.0))}
+        #
+        # cmap = mpl.colors.LinearSegmentedColormap('custom', cdict)
+
+        cmap = plt.get_cmap(colormap)
+
+        # =========================
+
+        # ColorbarBase derives from ScalarMappable and puts a colorbar
+        # in a specified axes, so it has everything needed for a
+        # standalone colorbar.  There are many more kwargs, but the
+        # following gives a basic continuous colorbar with ticks
+        # and labels.
+        cb1 = matplotlib.colorbar.ColorbarBase(ax1, cmap=cmap,
+                                               norm=norm,
+                                               orientation='horizontal')
+        ax1.set_title(title)
+        cb1.set_label('Legend: ' + label)
+
+        plt.savefig(product_name)

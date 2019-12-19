@@ -26,6 +26,8 @@ class DWImageClustering:
         self.water_mask = None
         self.best_k = None
 
+        self._product_name = None
+
         return
 
     @staticmethod
@@ -123,7 +125,7 @@ class DWImageClustering:
         elif self.config.clustering_method == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='ward')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='average')
 
         cluster_model.fit(data)
         return cluster_model.labels_
@@ -376,6 +378,13 @@ class DWImageClustering:
             bands_index.append(bands_keys.index(key))
 
         return data[:, bands_index]
+
+    @property
+    def product_name(self):
+        if self._product_name is None:
+            self._product_name = self.create_product_name()
+
+        return self._product_name
 
     def create_product_name(self):
 

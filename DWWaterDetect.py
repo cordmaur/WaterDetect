@@ -121,6 +121,8 @@ class DWWaterDetect:
 
     def run(self):
 
+        dw_image = None
+
         # if pdf_report is true, creates a FileMerger to assembly the FullReport
         pdf_merger = PdfFileMerger() if self.config.pdf_reports else None
 
@@ -151,14 +153,14 @@ class DWWaterDetect:
                 else:
                     composite_name = None
 
-                # Load necessary bands in memory
-                raster_bands = image.load_raster_bands(self.necessary_bands(include_rgb=False))
+                # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
+                image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
                 # load the masks specified in the config
                 image.load_masks(self.config.get_masks_list(image.product))
 
                 # Test if there is enough valid pixels in the clipped images
-                if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > 0.8:
+                if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.config.maximum_invalid:
                     print('Not enough valid pixels in the image area')
                     continue
 
@@ -183,84 +185,93 @@ class DWWaterDetect:
                     print('Calculating clusters for the following combination of bands:')
                     print(band_combination)
 
-                    # if there pdf_reports, create a FileMerger for this specific band combination
+                    # if pdf_reports, create a FileMerger for this specific band combination
                     if self.config.pdf_reports:
                         pdf_merger_image = PdfFileMerger()
                         pdf_merger_image.append(composite_name + '.pdf')
                     else:
                         pdf_merger_image = None
 
-                    # create the clustering image
-                    dw_image = DWImage.DWImageClustering(raster_bands, band_combination,
-                                                         image.invalid_mask, self.config)
-                    matrice_cluster = dw_image.run_detect_water()
+                    # create a dw_image object with the water mask and all the results
+                    dw_image = self.create_water_mask(band_combination, pdf_merger_image)
 
-                    # prepare the base product name based on algorithm and bands, to create the directory
-                    cluster_product_name = dw_image.create_product_name()
-
-                    # save the water mask and the clustering results
-                    self.saver.save_array(dw_image.water_mask, cluster_product_name + '_water_mask',
-                                          opt_relative_path=cluster_product_name)
-                    self.saver.save_array(dw_image.cluster_matrix, cluster_product_name + '_clusters',
-                                          opt_relative_path=cluster_product_name)
-
-                    # unload bands
-
-                    # todo: multiple parameters
-                    # todo: put common codes into DWCommon.py
-
-                    # if there is a pdf to create, burn-in the mask into the RGB composite
-                    # and append it to the image merger
-                    if self.config.pdf_reports:
-                        pdf_merger_image.append(self.create_rgb_burn_in_pdf(cluster_product_name + '_water_mask',
-                                                                            dw_image.water_mask,
-                                                                            color=(0, 0, 1),
-                                                                            fade=1,
-                                                                            opt_relative_path=cluster_product_name,
-                                                                            no_data_value=0))
-
-                    # calc the inversion parameter
+                    # calc the inversion parameter and save it to self.rasterbands in the dictionary
                     if self.config.inversion:
                         self.calc_inversion_parameter(dw_image, pdf_merger_image)
 
-                    # create the full path basename to plot the graphs to
-                    graph_basename = self.saver.output_folder.joinpath(cluster_product_name)\
-                        .joinpath(self.saver.base_name + cluster_product_name).as_posix()
-
-                    # for the PDF writer, we need to pass all the information needed for the title
-                    # so, we will produce the graph title = Area + Date + Product
-                    graph_title = self.saver.area_name + ' ' + self.saver.base_name + cluster_product_name
-
-                    DWutils.plot_graphs(raster_bands, self.config.graphs_bands, matrice_cluster,
-                                        graph_basename, graph_title, image.invalid_mask, 1000, pdf_merger_image)
+                    # save the graphs
+                    if self.config.plot_graphs:
+                        self.save_graphs(dw_image, pdf_merger_image)
 
                     if self.config.pdf_reports:
-                        report_name = 'ImageReport' + '_' + cluster_product_name + '.pdf'
-
-                        with open(self.saver.output_folder.joinpath(report_name), 'wb') as file_obj:
-                            pdf_merger_image.write(file_obj)
-
-                        pdf_merger_image.close()
-
-                        pdf_merger.append(self.saver.output_folder.joinpath(report_name).as_posix())
+                        pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
+                                                           self.config.parameter,
+                                                           pdf_merger_image,
+                                                           self.saver.output_folder))
 
             except Exception as err:
                 print('****** ERROR ********')
                 print(err)
 
-        if pdf_merger:
+        if pdf_merger is not None and dw_image is not None:
             if len(self.config.clustering_bands) == 1:
-                report_name = 'FullReport'
-                for band in self.config.clustering_bands[0]:
-                    report_name += '_' + band
-                report_name += '.pdf'
+                report_name = 'FullReport_' + dw_image.product_name + '_' + self.config.parameter
             else:
-                report_name = 'FullReport.pdf'
-            with open(self.saver.base_output_folder.joinpath(self.saver.area_name).
-                      joinpath(report_name), 'wb') as file_obj:
-                pdf_merger.write(file_obj)
+                report_name = 'FullReport_' + self.config.parameter
+
+            self.save_report(report_name, pdf_merger, self.saver.base_output_folder.joinpath(self.saver.area_name))
 
         return
+
+    # save the report and return the full path as posix
+    def save_report(self, report_name, pdf_merger, folder):
+
+        filename = folder.joinpath(report_name + '.pdf')
+
+        with open(filename, 'wb') as file_obj:
+            pdf_merger.write(file_obj)
+        pdf_merger.close()
+
+        return filename.as_posix()
+
+    def save_graphs(self, dw_image, pdf_merger_image):
+
+        # create the full path basename to plot the graphs to
+        graph_basename = self.saver.output_folder.joinpath(dw_image.product_name) \
+            .joinpath(self.saver.base_name + dw_image.product_name).as_posix()
+
+        # for the PDF writer, we need to pass all the information needed for the title
+        # so, we will produce the graph title = Area + Date + Product
+        graph_title = self.saver.area_name + ' ' + self.saver.base_name + dw_image.product_name
+
+        DWutils.plot_graphs(self.loader.raster_bands, self.config.graphs_bands, dw_image.cluster_matrix,
+                            graph_basename, graph_title, self.loader.invalid_mask, 1000, pdf_merger_image)
+
+    def create_water_mask(self, band_combination, pdf_merger_image):
+
+        # create the clustering image
+        dw_image = DWImage.DWImageClustering(self.loader.raster_bands, band_combination,
+                                             self.loader.invalid_mask, self.config)
+        dw_image.run_detect_water()
+
+        # save the water mask and the clustering results
+        self.saver.save_array(dw_image.water_mask, dw_image.product_name + '_water_mask',
+                              opt_relative_path=dw_image.product_name)
+        self.saver.save_array(dw_image.cluster_matrix, dw_image.product_name + '_clusters',
+                              opt_relative_path=dw_image.product_name)
+        # unload bands
+
+        # if there is a pdf to create, burn-in the mask into the RGB composite
+        # and append it to the image merger
+        if pdf_merger_image:
+            pdf_merger_image.append(self.create_rgb_burn_in_pdf(dw_image.product_name + '_water_mask',
+                                                                burn_in_array=dw_image.water_mask,
+                                                                color=(0, 0, 1),
+                                                                fade=1,
+                                                                opt_relative_path=dw_image.product_name,
+                                                                no_data_value=0))
+
+        return dw_image
 
     def calc_inversion_parameter(self, dw_image, pdf_merger_image):
         """
@@ -292,6 +303,11 @@ class DWWaterDetect:
                                                             self.loader.raster_bands['RedEdg2'],
                                                             self.loader.product)
 
+        elif self.config.parameter == 'chl_giteslon':
+            parameter = self.inversion_algos.chl_giteslon(self.loader.raster_bands['Red'],
+                                                          self.loader.raster_bands['RedEdg1'],
+                                                          self.loader.raster_bands['RedEdg2'])
+
         if parameter is not None:
             # clear the parameters array and apply the Water mask, with no_data_values
             parameter = DWutils.apply_mask(parameter, ~dw_image.water_mask, -9999)
@@ -299,15 +315,49 @@ class DWWaterDetect:
             # save the calculated parameter
             self.saver.save_array(parameter, self.config.parameter, no_data_value=-9999)
 
-            if self.config.pdf_reports:
+            if pdf_merger_image is not None:
+
+                max_value, min_value = self.calc_param_limits(parameter)
+
+                pdf_merger_image.append(self.create_colorbar_pdf(product_name='colorbar_' + self.config.parameter,
+                                                                 colormap=self.config.colormap,
+                                                                 min_value=min_value,
+                                                                 max_value=max_value))
+
                 pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=self.config.parameter,
                                                                     burn_in_array=parameter,
                                                                     color=None,
-                                                                    fade=0.5,
+                                                                    fade=0.8,
+                                                                    min_value=min_value,
+                                                                    max_value=max_value,
                                                                     opt_relative_path=None,
+                                                                    colormap=self.config.colormap,
+                                                                    uniform_distribution=self.config.uniform_distribution,
                                                                     no_data_value=-9999))
 
-    def create_rgb_burn_in_pdf(self, product_name, burn_in_array, color=None, fade=None, opt_relative_path=None,
+    def calc_param_limits(self, parameter, no_data_value=-9999):
+
+        valid = parameter[parameter != no_data_value]
+
+        min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
+        max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
+        return max_value*1.1, min_value*0.8
+
+    def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
+
+        filename = self.saver.output_folder.joinpath(product_name + '.pdf')
+
+        DWutils.create_colorbar_pdf(product_name=filename,
+                                    title=self.saver.area_name + ' ' + self.saver.base_name,
+                                    label=self.config.parameter + ' ' + self.config.parameter_unit,
+                                    colormap=colormap,
+                                    min_value=min_value,
+                                    max_value=max_value)
+
+        return filename.as_posix()
+
+    def create_rgb_burn_in_pdf(self, product_name, burn_in_array, color=None, min_value=None, max_value=None,
+                               fade=None, opt_relative_path=None, colormap='viridis', uniform_distribution=False,
                                no_data_value=0):
 
         # create the RGB burn in image
@@ -316,7 +366,11 @@ class DWWaterDetect:
                                                blue=self.loader.raster_bands['Blue'],
                                                burn_in_array=burn_in_array,
                                                color=color,
+                                               min_value=min_value,
+                                               max_value=max_value,
+                                               colormap=colormap,
                                                fade=fade,
+                                               uniform_distribution=False,
                                                no_data_value=no_data_value)
 
         # save the RGB auxiliary tif and gets the full path filename
