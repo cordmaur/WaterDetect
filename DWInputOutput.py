@@ -256,9 +256,13 @@ class DWLoader:
 
         if external_mask:
             mask_file = DWutils.find_file_glob(mask_name, self.current_image_folder)
-            mask_ds = DWutils.read_gdal_ds(mask_file, self.shape_file, self.temp_dir)
-            mask_array = mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
-            self.update_mask(mask_array != mask_valid_value)
+
+            if mask_file:
+                mask_ds = DWutils.read_gdal_ds(mask_file, self.shape_file, self.temp_dir)
+
+                if mask_ds:
+                    mask_array = mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
+                    self.update_mask(mask_array != mask_valid_value)
 
         # if self.product == 'S2_THEIA':
         #     mask_folder = self.current_image()/'MASKS'
