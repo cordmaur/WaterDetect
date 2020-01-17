@@ -157,7 +157,10 @@ class DWWaterDetect:
                 image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
                 # load the masks specified in the config
-                image.load_masks(self.config.get_masks_list(image.product))
+                image.load_masks(self.config.get_masks_list(image.product),
+                                 self.config.external_mask,
+                                 self.config.mask_name,
+                                 self.config.mask_valid_value)
 
                 # Test if there is enough valid pixels in the clipped images
                 if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.config.maximum_invalid:

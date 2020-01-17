@@ -457,6 +457,26 @@ class DWImageClustering:
 
         return self.cluster_matrix
 
+    def index_of_key(self, key):
+        keys = sorted(self.bands.keys())
+
+        return keys.index(key)
+
+    def separate_high_low_mndwi(self):
+        mndwi_index = self.index_of_key('mndwi')
+
+        high_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] > 0]
+
+        low_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] < 0]
+
+        high_mndwi, _ = DWutils.get_train_test_data(high_mndwi, self.config.train_size,
+                                                    self.config.min_train_size, self.config.max_train_size)
+
+        low_mndwi, _ = DWutils.get_train_test_data(low_mndwi, self.config.train_size,
+                                                   self.config.min_train_size, self.config.max_train_size)
+
+        return np.concatenate((high_mndwi, low_mndwi), axis=0)
+
     def apply_clustering(self):
         # Transform the rasters in a matrix where each band is a column
         self.data_as_columns = self.bands_to_columns()
@@ -467,10 +487,12 @@ class DWImageClustering:
             train_data_as_columns = self.data_as_columns
         else:
             # original train data keeps all the bands
-            train_data_as_columns, _ = DWutils.get_train_test_data(self.data_as_columns,
-                                                                   self.config.train_size,
-                                                                   self.config.min_train_size,
-                                                                   self.config.max_train_size)
+
+            train_data_as_columns = self.separate_high_low_mndwi()
+            # train_data_as_columns, _ = DWutils.get_train_test_data(self.data_as_columns,
+            #                                                        self.config.train_size,
+            #                                                        self.config.min_train_size,
+            #                                                        self.config.max_train_size)
 
         # create data bunch only with the bands used for clustering
         split_train_data_as_columns = self.split_data_by_bands(train_data_as_columns, self.bands_keys)
