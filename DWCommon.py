@@ -716,8 +716,12 @@ class DWutils:
     @staticmethod
     def find_file_glob(file_string, folder):
 
-        file = [f for f in folder.iterdir() if file_string in f.stem][0]
-        return file
+        file_list = [f for f in folder.iterdir() if file_string in f.stem]
+
+        if len(file_list) > 0:
+            return file_list[0]
+        else:
+            return None
 
     @staticmethod
     def read_gdal_ds(file, shape_file, temp_dir):
@@ -730,7 +734,7 @@ class DWutils:
         """
         gdal_mask = gdal.Open(file.as_posix())
 
-        if shape_file:
+        if gdal_mask and shape_file:
 
             opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
                                    srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
