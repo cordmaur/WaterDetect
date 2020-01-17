@@ -241,7 +241,7 @@ class DWLoader:
 
         return self.invalid_mask
 
-    def load_masks(self, masks_list):
+    def load_masks(self, product_masks_list, external_mask, mask_name, mask_valid_value):
 
         mask_processor = None
         if self.product == 'S2_THEIA':
@@ -252,7 +252,13 @@ class DWLoader:
                                                     self.shape_file, self.temp_dir)
 
         if mask_processor:
-            self.update_mask(mask_processor.get_combined_masks(masks_list))
+            self.update_mask(mask_processor.get_combined_masks(product_masks_list))
+
+        if external_mask:
+            mask_file = DWutils.find_file_glob(mask_name, self.current_image_folder)
+            mask_ds = DWutils.read_gdal_ds(mask_file, self.shape_file, self.temp_dir)
+            mask_array = mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
+            self.update_mask(mask_array != mask_valid_value)
 
         # if self.product == 'S2_THEIA':
         #     mask_folder = self.current_image()/'MASKS'

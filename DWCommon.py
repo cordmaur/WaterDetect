@@ -104,6 +104,18 @@ class DWConfig:
         return self.get_option('General', 'texture_stretching', evaluate=True)
 
     @property
+    def external_mask(self):
+        return self.get_option('External_Mask', 'external_mask', evaluate=True)
+
+    @property
+    def mask_name(self):
+        return self.get_option('External_Mask', 'mask_name', evaluate=False)
+
+    @property
+    def mask_valid_value(self):
+        return self.get_option('External_Mask', 'mask_valid_value', evaluate=True)
+
+    @property
     def inversion(self):
         return self.get_option('Inversion', 'inversion', evaluate=True)
 
@@ -659,7 +671,6 @@ class DWutils:
 
         return bands_dict
 
-
     @staticmethod
     def create_colorbar_pdf(product_name, title, label, colormap, min_value, max_value):
         # Make a figure and axes with dimensions as desired.
@@ -701,3 +712,35 @@ class DWutils:
         cb1.set_label('Legend: ' + label)
 
         plt.savefig(product_name)
+
+    @staticmethod
+    def find_file_glob(file_string, folder):
+
+        file = [f for f in folder.iterdir() if file_string in f.stem][0]
+        return file
+
+    @staticmethod
+    def read_gdal_ds(file, shape_file, temp_dir):
+        """
+        Read a GDAL dataset clipping it with a given shapefile, if necessary
+        :param file: Filepath of the GDAL file (.tif, etc.) as Pathlib
+        :param shape_file: file path of the shapefile
+        :param temp_dir: file path of the temporary directory
+        :return: GDAL dataset
+        """
+        gdal_mask = gdal.Open(file.as_posix())
+
+        if shape_file:
+
+            opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
+                                   srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+
+            dest_name = (temp_dir / (file.stem + '_clipped')).as_posix()
+            clipped_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+                                        srcDSOrSrcDSTab=gdal_mask,
+                                        options=opt)
+            clipped_mask_ds.FlushCache()
+            gdal_mask = clipped_mask_ds
+
+        return gdal_mask
+
