@@ -10,7 +10,7 @@ class DWLoader:
 
     dicS2_THEIA = {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
                    'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5', 'RedEdg2': 'B6', 'RedEdg3': 'B7'},
-                   'suffix': '.tif', 'string': 'FRE'}
+                   'suffix': '.tif', 'string': 'SRE'}
 
     dicSEN2COR = {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12'},
                   'Nir': 'B08', 'Nir2': 'B8A'}
@@ -241,7 +241,8 @@ class DWLoader:
 
         return self.invalid_mask
 
-    def load_masks(self, product_masks_list, external_mask, mask_name, mask_valid_value):
+    def load_masks(self, product_masks_list, external_mask, mask_name, mask_valid_value=None,
+                   mask_invalid_value=None):
 
         mask_processor = None
         if self.product == 'S2_THEIA':
@@ -262,7 +263,14 @@ class DWLoader:
 
                 if mask_ds:
                     mask_array = mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
-                    self.update_mask(mask_array != mask_valid_value)
+
+                    if mask_valid_value:
+                        print('Using external mask. Valid value = {}'.format(mask_valid_value))
+                        self.update_mask(mask_array != mask_valid_value)
+                    elif mask_invalid_value:
+                        print('Using external mask. Invalid value = {}'.format(mask_invalid_value))
+                        self.update_mask(mask_array == mask_invalid_value)
+
 
         # if self.product == 'S2_THEIA':
         #     mask_folder = self.current_image()/'MASKS'
