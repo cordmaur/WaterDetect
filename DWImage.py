@@ -96,15 +96,20 @@ class DWImageClustering:
 
         # load all the bands in the dictionary as numpy arrays columns
         # the bands will appear in sorted order
-        valid_data_list = []
+        # valid_data_list = []
+        data = None
 
         for key in sorted(self.bands.keys()):
             band_array = self.bands[key]
 
-            valid_data_list.append(band_array[~self.invalid_mask])
+            band_as_column = band_array[~self.invalid_mask].reshape(-1,1)
+
+            data = band_as_column if data is None else np.concatenate([data, band_as_column], axis=1)
+
+            # valid_data_list.append(band_array[~self.invalid_mask])
 
         # prepare the multidimensional data array (bands as columns)
-        data = np.c_[valid_data_list].transpose()
+        # data = np.c_[valid_data_list].transpose()
 
         return data
 
@@ -125,7 +130,7 @@ class DWImageClustering:
         elif self.config.clustering_method == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='average')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='ward')
 
         cluster_model.fit(data)
         return cluster_model.labels_
@@ -453,7 +458,8 @@ class DWImageClustering:
         else:
             self.cluster_matrix = self.apply_clustering()
 
-        self.water_mask = self.cluster_matrix == 1
+        # self.water_mask = self.cluster_matrix == 1
+        self.water_mask = np.where(self.cluster_matrix == 1, 1, np.where(self.invalid_mask == 1, 255, 0))
 
         return self.cluster_matrix
 
@@ -464,10 +470,12 @@ class DWImageClustering:
 
     def separate_high_low_mndwi(self):
         mndwi_index = self.index_of_key('mndwi')
+        mir_index = self.index_of_key('Mir')
 
-        high_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] > 0]
+        high_mndwi = self.data_as_columns[(self.data_as_columns[:, mndwi_index] > 0.2) &
+                                          (self.data_as_columns[:, mir_index] < 0.3) ]
 
-        low_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] < 0]
+        low_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] < 0.2]
 
         high_mndwi, _ = DWutils.get_train_test_data(high_mndwi, self.config.train_size,
                                                     self.config.min_train_size, self.config.max_train_size)
