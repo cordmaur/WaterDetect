@@ -589,7 +589,7 @@ class DWutils:
     def plot_clustered_data(data, cluster_names, file_name, graph_options, pdf_merger):
         plt.style.use('seaborn-whitegrid')
 
-        plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick']
+        plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick','orange', 'cyan']
         # plot_colors = list(colors.cnames.keys())
 
         fig, ax1 = plt.subplots()
