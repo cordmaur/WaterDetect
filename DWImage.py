@@ -340,6 +340,19 @@ class DWImageClustering:
 
         return clf.predict(data)
 
+
+    def verify_cluster(self, clusters_params, k):
+
+        if (self.get_cluster_param(clusters_params, k, 'mean', 'mndwi') > 0):
+            return 'water'
+        else:
+        # if (self.get_cluster_param(clusters_params, k, 'max', 'mndwi') <= 0.3) and \
+        #                 self.get_cluster_param(clusters_params, k, 'min', 'mndwi') <= -0.10:
+            return 'not water'
+
+        # return 'ambiguous'
+
+
     def create_matrice_cluster(self, indices_array):
         """
         Recreates the matrix with the original shape with the cluster labels for each pixel
@@ -353,15 +366,22 @@ class DWImageClustering:
         matrice_cluster = np.zeros_like(list(self.bands.values())[0])
 
         # apply water pixels to value 1
-        matrice_cluster[indices_array[0][self.clusters_labels == self.water_cluster['clusterid']],
-                        indices_array[1][self.clusters_labels == self.water_cluster['clusterid']]] = 1
+        # matrice_cluster[indices_array[0][self.clusters_labels == self.water_cluster['clusterid']],
+        #                 indices_array[1][self.clusters_labels == self.water_cluster['clusterid']]] = 1
 
         # loop through the remaining labels and apply value >= 3
         new_label = 2
         for label_i in range(self.best_k):
-            if label_i != self.water_cluster['clusterid']:
+            if self.verify_cluster(self.clusters_params, label_i) == 'water':
+                matrice_cluster[indices_array[0][self.clusters_labels == label_i],
+                                indices_array[1][self.clusters_labels == label_i]] = 1
+            else:
                 matrice_cluster[indices_array[0][self.clusters_labels == label_i],
                                 indices_array[1][self.clusters_labels == label_i]] = new_label
+
+            # if label_i != self.water_cluster['clusterid']:
+            #     matrice_cluster[indices_array[0][self.clusters_labels == label_i],
+            #                     indices_array[1][self.clusters_labels == label_i]] = new_label
                 new_label += 1
 
         return matrice_cluster
