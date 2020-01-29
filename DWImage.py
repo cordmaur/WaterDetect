@@ -130,7 +130,7 @@ class DWImageClustering:
         elif self.config.clustering_method == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='ward')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='complete')
 
         cluster_model.fit(data)
         return cluster_model.labels_
@@ -152,7 +152,7 @@ class DWImageClustering:
             self.best_k = min_k
             return self.best_k
 
-        if self.config.score_index == 'silhouete':
+        if self.config.score_index == 'silhouette':
             print('Selection of best number of clusters using Silhouete Index:')
         else:
             print('Selection of best number of clusters using Calinski-Harabasz Index:')
@@ -161,11 +161,11 @@ class DWImageClustering:
 
         for num_k in range(min_k, max_k + 1):
             # cluster_model = cluster.KMeans(n_clusters=num_k, init='k-means++')
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=num_k, linkage='ward')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=num_k, linkage='complete')
 
             labels = cluster_model.fit_predict(data)
 
-            if self.config.score_index == 'silhouete':
+            if self.config.score_index == 'silhouette':
                 computed_metrics.append(metrics.silhouette_score(data, labels))
                 print('k={} :Silhouete index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
@@ -211,7 +211,7 @@ class DWImageClustering:
             if 'mndwi' not in self.bands.keys():
                 raise OSError('MNDWI band necessary for detecting water with maxmndwi option')
 
-            water_cluster = self.detect_cluster('value', 'max', 'mndwi')
+            water_cluster = self.detect_cluster('value', 'max', 'mbwi')
 
         elif self.config.detect_water_cluster == 'minmir2':
             if 'mndwi' not in self.bands.keys():
@@ -427,15 +427,21 @@ class DWImageClustering:
     def apply_otsu_treshold(self):
         from skimage.filters import threshold_otsu
 
-        # band to apply otsu threshold. Use the second band in bands_keys
-        otsu_band = self.bands[self.bands_keys[1]]
+        self.data_as_columns = self.bands_to_columns()
+        train_data_as_columns = self.separate_high_low_mndwi()
 
-        threshold = threshold_otsu(otsu_band[otsu_band > -9999])
+        otsu_band = self.bands_keys[1]
+
+        otsu_band_index = self.index_of_key(otsu_band)
+
+        otsu_data = train_data_as_columns[:, otsu_band_index]
+
+        threshold = threshold_otsu(otsu_data)
 
         # create an empty matrix
         matrice_cluster = np.zeros_like(list(self.bands.values())[0])
 
-        matrice_cluster[otsu_band >= threshold] = 1
+        matrice_cluster[self.bands[otsu_band] >= threshold] = 1
 
         return matrice_cluster
 
@@ -472,8 +478,8 @@ class DWImageClustering:
         mndwi_index = self.index_of_key('mndwi')
         mir_index = self.index_of_key('Mir')
 
-        high_mndwi = self.data_as_columns[(self.data_as_columns[:, mndwi_index] > 0.2) &
-                                          (self.data_as_columns[:, mir_index] < 0.3) ]
+        high_mndwi = self.data_as_columns[(self.data_as_columns[:, mndwi_index] > 0.2)]  # &
+                                          # (self.data_as_columns[:, mir_index] < 0.3)]
 
         low_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] < 0.2]
 
@@ -496,11 +502,11 @@ class DWImageClustering:
         else:
             # original train data keeps all the bands
 
-            train_data_as_columns = self.separate_high_low_mndwi()
-            # train_data_as_columns, _ = DWutils.get_train_test_data(self.data_as_columns,
-            #                                                        self.config.train_size,
-            #                                                        self.config.min_train_size,
-            #                                                        self.config.max_train_size)
+            # train_data_as_columns = self.separate_high_low_mndwi()
+            train_data_as_columns, _ = DWutils.get_train_test_data(self.data_as_columns,
+                                                                   self.config.train_size,
+                                                                   self.config.min_train_size,
+                                                                   self.config.max_train_size)
 
         # create data bunch only with the bands used for clustering
         split_train_data_as_columns = self.split_data_by_bands(train_data_as_columns, self.bands_keys)
