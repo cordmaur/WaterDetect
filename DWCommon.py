@@ -164,6 +164,10 @@ class DWConfig:
         return self.get_option('Clustering', 'clustering_method', evaluate=False)
 
     @property
+    def linkage(self):
+        return self.get_option('Clustering', 'linkage', evaluate=False)
+
+    @property
     def train_size(self):
         return self.get_option('Clustering', 'train_size', evaluate=True)
 
@@ -323,7 +327,7 @@ class DWutils:
 
         # nd = (img1-img2) / (img1 + img2)
 
-        nd[~mask] = MinMaxScaler(feature_range=(-1,1), copy=False).fit_transform(nd[~mask].reshape(-1,1)).reshape(-1)
+        # nd[~mask] = MinMaxScaler(feature_range=(-1,1), copy=False).fit_transform(nd[~mask].reshape(-1,1)).reshape(-1)
 
         nd[nd > 1] = 1
         nd[nd < -1] = -1
