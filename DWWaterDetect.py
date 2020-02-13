@@ -101,6 +101,7 @@ class DWWaterDetect:
                - (bands['Mir']+min_cte) - (bands['Mir2']+min_cte)
 
         mbwi[~mask] = RobustScaler(copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
+        # mbwi[~mask] = QuantileTransformer(copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
         mbwi[~mask] = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
 
 

@@ -264,10 +264,10 @@ class DWLoader:
                 if mask_ds:
                     mask_array = mask_ds.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
 
-                    if mask_valid_value:
+                    if mask_valid_value is not None:
                         print('Using external mask. Valid value = {}'.format(mask_valid_value))
                         self.update_mask(mask_array != mask_valid_value)
-                    elif mask_invalid_value:
+                    elif mask_invalid_value is not None:
                         print('Using external mask. Invalid value = {}'.format(mask_invalid_value))
                         self.update_mask(mask_array == mask_invalid_value)
 
