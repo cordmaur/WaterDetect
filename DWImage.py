@@ -73,7 +73,7 @@ class DWImageClustering:
 
         # check if the list contains the required bands
         for band in bands_keys:
-            if band == 'otsu':
+            if band == 'otsu' or band == 'canny':
                 continue
 
             if band not in bands.keys():
@@ -258,7 +258,7 @@ class DWImageClustering:
                 param_list.append(clt['mean'][idx_band1] - clt['mean'][idx_band2])
 
             elif param == 'value':
-                if (clt['pixels'] > 10) and (clt['mean'][available_bands.index('Nir')] < 0.25*4):
+                if (clt['pixels'] > 5) and (clt['mean'][available_bands.index('Nir')] < 0.25*4):
                     param_list.append(clt['mean'][idx_band1])
                 else:
                     param_list.append(-1)
@@ -474,18 +474,52 @@ class DWImageClustering:
 
         return product_name
 
+    def apply_canny_treshold(self):
+        from skimage import feature, morphology
+        from skimage.filters import threshold_otsu
+
+        canny_band = self.bands_keys[1]
+
+        condition = True
+        correction = 0
+
+        while (condition):
+            edges = feature.canny(self.bands[canny_band], sigma=2, use_quantiles=True, low_threshold=0.98 - correction,
+                                  high_threshold=(0.999 - correction), mask=~self.invalid_mask)
+            # mask= (im != 0))
+            condition = (np.count_nonzero(edges) < 10000)
+            print('Correction: ', correction)
+            print("Canny edges pixels: ", np.count_nonzero(edges))
+            correction = correction + 0.004
+            if correction>1:
+                raise Exception
+
+        dilated_edges = morphology.binary_dilation(edges, selem=morphology.square(5))
+
+        img = self.bands[canny_band]
+        threshold = threshold_otsu(img[dilated_edges & (img != -9999)])
+
+        print('Canny threshold on {} band = {}'.format(canny_band, threshold))
+
+        # create an empty matrix
+        matrice_cluster = np.zeros_like(list(self.bands.values())[0])
+
+        matrice_cluster[self.bands[canny_band] >= threshold] = 1
+
+        return matrice_cluster
+
     def apply_otsu_treshold(self):
         from skimage.filters import threshold_otsu
 
         self.data_as_columns = self.bands_to_columns()
-        train_data_as_columns = self.separate_high_low_mndwi()
+        # train_data_as_columns = self.separate_high_low_mndwi()
 
         otsu_band = self.bands_keys[1]
 
         otsu_band_index = self.index_of_key(otsu_band)
 
-        otsu_data = train_data_as_columns[:, otsu_band_index]
-        # otsu_data = self.data_as_columns[:, otsu_band_index]
+        # otsu_data = train_data_as_columns[:, otsu_band_index]
+        otsu_data = self.data_as_columns[:, otsu_band_index]
 
         threshold = threshold_otsu(otsu_data)
 
@@ -513,6 +547,9 @@ class DWImageClustering:
 
         if self.bands_keys[0] == 'otsu':
             self.cluster_matrix = self.apply_otsu_treshold()
+
+        elif self.bands_keys[0] == 'canny':
+            self.cluster_matrix = self.apply_canny_treshold()
 
         else:
             self.cluster_matrix = self.apply_clustering()

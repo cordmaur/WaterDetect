@@ -229,7 +229,8 @@ class DWLoader:
                 gdal_img = self.gdal_bands[band]
 
                 raster_band = gdal_img.ReadAsArray(buf_xsize=self.x_size,
-                                                   buf_ysize=self.y_size).astype(dtype=np.float32) / 10000
+                                                   buf_ysize=self.y_size,
+                                                   resample_alg=gdal.GRA_Average).astype(dtype=np.float32) / 10000
                 self.raster_bands.update({band: raster_band})
 
                 self.invalid_mask |= raster_band == -0.9999
