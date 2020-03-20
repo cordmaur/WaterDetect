@@ -73,7 +73,7 @@ class DWImageClustering:
 
         # check if the list contains the required bands
         for band in bands_keys:
-            if band == 'otsu':
+            if band == 'otsu' or band == 'canny':
                 continue
 
             if band not in bands.keys():
@@ -104,6 +104,10 @@ class DWImageClustering:
 
             band_as_column = band_array[~self.invalid_mask].reshape(-1,1)
 
+            if (key == 'Mir') or (key == 'Mir2') or (key == 'Nir') or (key == 'Nir2') or (key == 'Green'):
+                band_as_column = band_as_column * 4
+                band_as_column[band_as_column > 4] = 4
+
             data = band_as_column if data is None else np.concatenate([data, band_as_column], axis=1)
 
             # valid_data_list.append(band_array[~self.invalid_mask])
@@ -130,7 +134,7 @@ class DWImageClustering:
         elif self.config.clustering_method == 'gauss_mixture':
             cluster_model = GMM(n_components=self.best_k, covariance_type='full')
         else:
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage='average')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage=self.config.linkage)
 
         cluster_model.fit(data)
         return cluster_model.labels_
@@ -152,7 +156,7 @@ class DWImageClustering:
             self.best_k = min_k
             return self.best_k
 
-        if self.config.score_index == 'silhouete':
+        if self.config.score_index == 'silhouette':
             print('Selection of best number of clusters using Silhouete Index:')
         else:
             print('Selection of best number of clusters using Calinski-Harabasz Index:')
@@ -161,17 +165,19 @@ class DWImageClustering:
 
         for num_k in range(min_k, max_k + 1):
             # cluster_model = cluster.KMeans(n_clusters=num_k, init='k-means++')
-            cluster_model = cluster.AgglomerativeClustering(n_clusters=num_k, linkage='average')
+            cluster_model = cluster.AgglomerativeClustering(n_clusters=num_k, linkage=self.config.linkage)
 
             labels = cluster_model.fit_predict(data)
 
-            if self.config.score_index == 'silhouete':
+            if self.config.score_index == 'silhouette':
                 computed_metrics.append(metrics.silhouette_score(data, labels))
                 print('k={} :Silhouete index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
             else:
                 computed_metrics.append(metrics.calinski_harabaz_score(data, labels))
                 print('k={} :Calinski_harabaz index={}'.format(num_k, computed_metrics[num_k - min_k]))
+
+
 
         # the best solution is the one with higher index
         self.best_k = computed_metrics.index(max(computed_metrics)) + min_k
@@ -197,6 +203,7 @@ class DWImageClustering:
             cluster_param.update({'stdev': np.std(cluster_i, 0)})
             cluster_param.update({'diffb2b1': cluster_param['mean'][1] - cluster_param['mean'][0]})
             cluster_param.update({'pixels': cluster_i.shape[0]})
+
             clusters_params.append(cluster_param)
 
         return clusters_params
@@ -212,7 +219,7 @@ class DWImageClustering:
             if 'mndwi' not in self.bands.keys():
                 raise OSError('MNDWI band necessary for detecting water with maxmndwi option')
 
-            water_cluster = self.detect_cluster('value', 'max', 'mndwi')
+            water_cluster = self.detect_cluster('value', 'max', 'mbwi')
 
         elif self.config.detect_water_cluster == 'minmir2':
             if 'mndwi' not in self.bands.keys():
@@ -243,6 +250,7 @@ class DWImageClustering:
         if band2:
             idx_band2 = available_bands.index(band2)
 
+        # todo: fix the fixed values
         for clt in self.clusters_params:
             if param == 'diff':
                 if not idx_band2:
@@ -250,8 +258,10 @@ class DWImageClustering:
                 param_list.append(clt['mean'][idx_band1] - clt['mean'][idx_band2])
 
             elif param == 'value':
-                if (clt['pixels'] > 10) and (clt['mean'][available_bands.index('Nir')] < 0.3):
+                if (clt['pixels'] > 5) and (clt['mean'][available_bands.index('Nir')] < 0.25*4):
                     param_list.append(clt['mean'][idx_band1])
+                else:
+                    param_list.append(-1)
 
         if logic == 'max':
             idx_detected = param_list.index(max(param_list))
@@ -342,6 +352,28 @@ class DWImageClustering:
 
         return clf.predict(data)
 
+    def get_cluster_param(self, clusters_params, k, param, band):
+
+        index = sorted(self.bands.keys()).index(band)
+        value = clusters_params[k][param][index]
+
+        return value
+
+    def verify_cluster(self, clusters_params, k):
+
+        if (self.get_cluster_param(clusters_params, k, 'mean', 'mndwi') > 0) and \
+            (self.get_cluster_param(clusters_params, k, 'mean', 'ndwi') > 0) and \
+                (self.get_cluster_param(clusters_params, k, 'mean', 'Mir2') < (0.1*4)) and \
+                (self.get_cluster_param(clusters_params, k, 'mean', 'Nir') < (0.3*4)):
+            return 'water'
+        else:
+        # if (self.get_cluster_param(clusters_params, k, 'max', 'mndwi') <= 0.3) and \
+        #                 self.get_cluster_param(clusters_params, k, 'min', 'mndwi') <= -0.10:
+            return 'not water'
+
+        # return 'ambiguous'
+
+
     def create_matrice_cluster(self, indices_array):
         """
         Recreates the matrix with the original shape with the cluster labels for each pixel
@@ -358,13 +390,29 @@ class DWImageClustering:
         matrice_cluster[indices_array[0][self.clusters_labels == self.water_cluster['clusterid']],
                         indices_array[1][self.clusters_labels == self.water_cluster['clusterid']]] = 1
 
+        print('Assgnin 1 to cluster_id {}'.format(self.water_cluster['clusterid']))
+
         # loop through the remaining labels and apply value >= 3
         new_label = 2
         for label_i in range(self.best_k):
+
             if label_i != self.water_cluster['clusterid']:
+
+                # if self.verify_cluster(self.clusters_params, label_i) == 'water':
+                #     matrice_cluster[indices_array[0][self.clusters_labels == label_i],
+                #                     indices_array[1][self.clusters_labels == label_i]] = 1
+                #     print('Cluster {} = water'.format(label_i))
+                # else:
+                #     matrice_cluster[indices_array[0][self.clusters_labels == label_i],
+                #                     indices_array[1][self.clusters_labels == label_i]] = new_label
+                #     print('Cluster {} receiving label {}'.format(label_i, new_label))
+                #
                 matrice_cluster[indices_array[0][self.clusters_labels == label_i],
                                 indices_array[1][self.clusters_labels == label_i]] = new_label
+
                 new_label += 1
+            else:
+                print('Skipping cluster_id {}'.format(label_i))
 
         return matrice_cluster
 
@@ -399,7 +447,7 @@ class DWImageClustering:
         classifier = self.config.classifier
         clip_band = self.config.clip_band
 
-        if clustering == 'agglomerative':
+        if clustering == 'aglomerative':
             product_name = 'AC_'
         elif clustering == 'gauss_mixture':
             product_name = 'GM_'
@@ -426,18 +474,61 @@ class DWImageClustering:
 
         return product_name
 
-    def apply_otsu_treshold(self):
+    def apply_canny_treshold(self):
+        from skimage import feature, morphology
         from skimage.filters import threshold_otsu
 
-        # band to apply otsu threshold. Use the second band in bands_keys
-        otsu_band = self.bands[self.bands_keys[1]]
+        canny_band = self.bands_keys[1]
 
-        threshold = threshold_otsu(otsu_band[otsu_band > -9999])
+        condition = True
+        correction = 0
+
+        while (condition):
+            edges = feature.canny(self.bands[canny_band], sigma=2, use_quantiles=True, low_threshold=0.98 - correction,
+                                  high_threshold=(0.999 - correction), mask=~self.invalid_mask)
+            # mask= (im != 0))
+            condition = (np.count_nonzero(edges) < 10000)
+            print('Correction: ', correction)
+            print("Canny edges pixels: ", np.count_nonzero(edges))
+            correction = correction + 0.004
+            if correction>1:
+                raise Exception
+
+        dilated_edges = morphology.binary_dilation(edges, selem=morphology.square(5))
+
+        img = self.bands[canny_band]
+        threshold = threshold_otsu(img[dilated_edges & (img != -9999)])
+
+        print('Canny threshold on {} band = {}'.format(canny_band, threshold))
 
         # create an empty matrix
         matrice_cluster = np.zeros_like(list(self.bands.values())[0])
 
-        matrice_cluster[otsu_band >= threshold] = 1
+        matrice_cluster[self.bands[canny_band] >= threshold] = 1
+
+        return matrice_cluster
+
+    def apply_otsu_treshold(self):
+        from skimage.filters import threshold_otsu
+
+        self.data_as_columns = self.bands_to_columns()
+        # train_data_as_columns = self.separate_high_low_mndwi()
+
+        otsu_band = self.bands_keys[1]
+
+        otsu_band_index = self.index_of_key(otsu_band)
+
+        # otsu_data = train_data_as_columns[:, otsu_band_index]
+        otsu_data = self.data_as_columns[:, otsu_band_index]
+
+        threshold = threshold_otsu(otsu_data)
+
+        print('OTSU threshold on {} band = {}'.format(otsu_band, threshold))
+
+        # create an empty matrix
+        matrice_cluster = np.zeros_like(list(self.bands.values())[0])
+
+        matrice_cluster[self.bands[otsu_band] >= threshold] = 1
 
         return matrice_cluster
 
@@ -457,10 +548,14 @@ class DWImageClustering:
         if self.bands_keys[0] == 'otsu':
             self.cluster_matrix = self.apply_otsu_treshold()
 
+        elif self.bands_keys[0] == 'canny':
+            self.cluster_matrix = self.apply_canny_treshold()
+
         else:
             self.cluster_matrix = self.apply_clustering()
 
-        self.water_mask = self.cluster_matrix == 1
+        # self.water_mask = self.cluster_matrix == 1
+        self.water_mask = np.where(self.cluster_matrix == 1, 1, np.where(self.invalid_mask == 1, 255, 0))
 
         return self.cluster_matrix
 
@@ -471,8 +566,10 @@ class DWImageClustering:
 
     def separate_high_low_mndwi(self):
         mndwi_index = self.index_of_key('mndwi')
+        mir_index = self.index_of_key('Mir')
 
-        high_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] > 0.2]
+        high_mndwi = self.data_as_columns[(self.data_as_columns[:, mndwi_index] > 0.2)]  # &
+                                          # (self.data_as_columns[:, mir_index] < 0.3)]
 
         low_mndwi = self.data_as_columns[self.data_as_columns[:, mndwi_index] < 0.2]
 

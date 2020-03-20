@@ -21,6 +21,12 @@ class DWLoader:
                   'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
                   'suffix': '.tif', 'string': 'sr_band'}
 
+    dicS2_L1C = {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
+                                 'Nir': 'B08', 'Nir2': 'B8A'},
+                 'suffix': '.jp2',
+                 'string': '',
+                 'subdir': 'GRANULE/*/IMG_DATA'}
+
     def __init__(self, input_folder, shape_file, product):
 
         # save the input folder (holds all the images) and the shapefile
@@ -80,6 +86,8 @@ class DWLoader:
                 product_dict = self.dicS2_THEIA
             elif self.product in ["SEN2COR"]:
                 product_dict = self.dicSEN2COR
+            elif self.product in ["S2_L1C"]:
+                product_dict = self.dicS2_L1C
             else:
                 product_dict = self.dicLANDSAT
 
@@ -113,6 +121,29 @@ class DWLoader:
         """
         return self.current_image_folder.stem
 
+    @property
+    def bands_path(self):
+        """
+        Return the directory of the bands depending on the product
+        :return: PosixPath of the directory containing the bands
+        """
+
+        bands_path = self.current_image_folder
+
+        # if there is a subdir for the product, append it to the path
+        # caution with the use of '*' that represents an unnamed directory
+        if 'subdir' in self.product_dict.keys():
+            split_subdir = self.product_dict['subdir'].split('/')
+
+            for subdir in split_subdir:
+                if subdir  != '*':
+                    bands_path /= subdir
+                else:
+                    # add the first directory (hopefully the only one) to the path
+                    bands_path /= [d for d in bands_path.iterdir() if d.is_dir()][0]
+
+        return bands_path
+
     def get_bands_files(self):
         """
         Retrieve the full path of bands saved for the current image, according to the product
@@ -121,12 +152,15 @@ class DWLoader:
         print('Retrieving bands for image: ' + self.current_image_folder.as_posix())
 
         # put the full path of the corresponding bands in a list
-        bands = [file for file in self.current_image_folder.iterdir() if file.suffix == self.product_dict['suffix']
+        bands = [file for file in self.bands_path.iterdir() if file.suffix == self.product_dict['suffix']
                  and self.product_dict['string'] in file.stem]
 
         if bands:
+            print('The following bands were found:')
             for b in bands:
-                print(b.stem)
+                print(b.name)
+        else:
+            raise OSError('No bands found in dir: ')
 
         return bands
 

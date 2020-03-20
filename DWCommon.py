@@ -100,6 +100,10 @@ class DWConfig:
         return self.get_option('General', 'pdf_reports', evaluate=True)
 
     @property
+    def save_indices(self):
+        return self.get_option('General', 'save_indices', evaluate=True)
+
+    @property
     def texture_stretching(self):
         return self.get_option('General', 'texture_stretching', evaluate=True)
 
@@ -114,6 +118,10 @@ class DWConfig:
     @property
     def mask_valid_value(self):
         return self.get_option('External_Mask', 'mask_valid_value', evaluate=True)
+
+    @property
+    def mask_invalid_value(self):
+        return self.get_option('External_Mask', 'mask_invalid_value', evaluate=True)
 
     @property
     def inversion(self):
@@ -158,6 +166,10 @@ class DWConfig:
     @property
     def clustering_method(self):
         return self.get_option('Clustering', 'clustering_method', evaluate=False)
+
+    @property
+    def linkage(self):
+        return self.get_option('Clustering', 'linkage', evaluate=False)
 
     @property
     def train_size(self):
@@ -236,12 +248,15 @@ class DWConfig:
 
         if product == 'LANDSAT8':
             section_name = 'LandsatMasks'
-        else:
+        elif product == 'S2_THEIA':
             section_name = 'TheiaMasks'
+        else:
+            section_name = None
 
-        for key in self.config._sections[section_name]:
-            if self.config.getboolean(section_name, key):
-                masks_lst.append(key)
+        if section_name is not None:
+            for key in self.config._sections[section_name]:
+                if self.config.getboolean(section_name, key):
+                    masks_lst.append(key)
 
         return masks_lst
 
@@ -300,12 +315,26 @@ class DWutils:
         :return: nd array filled with -9999 in the mask and the mask itself
         """
 
+        # changement for negative SRE scenes
+        min_cte = np.min([np.min(img1[~mask]), np.min(img2[~mask])])
+
+        if min_cte <= 0:
+            min_cte = -min_cte + 0.001
+        else:
+            min_cte = 0
+
+        nd = ((img1+min_cte)-(img2+min_cte)) / ((img1+min_cte) + (img2+min_cte))
+
         # if any of the bands is set to zero in the pixel, makes a small shift upwards, as proposed by olivier hagole
         # https://github.com/olivierhagolle/modified_NDVI
-        nd = np.where((img1 > 0) & (img2 > 0), (img1-img2) / (img1 + img2),
-                      ((img1+0.001)-(img2+0.001)) / (img1+0.001 + img2+0.001))
+        # nd = np.where((img1 > 0) & (img2 > 0), (img1-img2) / (img1 + img2), np.nan)
+                      # (img1+0.005-img2-0.005) / (img1+0.005 + img2+0.005))
+
+        # nd = np.where((img1 <= 0) & (img2 <= 0), np.nan, (img1-img2) / (img1 + img2))
 
         # nd = (img1-img2) / (img1 + img2)
+
+        # nd[~mask] = MinMaxScaler(feature_range=(-1,1), copy=False).fit_transform(nd[~mask].reshape(-1,1)).reshape(-1)
 
         nd[nd > 1] = 1
         nd[nd < -1] = -1
@@ -571,7 +600,7 @@ class DWutils:
     def plot_clustered_data(data, cluster_names, file_name, graph_options, pdf_merger):
         plt.style.use('seaborn-whitegrid')
 
-        plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick']
+        plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick','orange', 'cyan']
         # plot_colors = list(colors.cnames.keys())
 
         fig, ax1 = plt.subplots()
