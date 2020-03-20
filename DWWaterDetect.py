@@ -7,6 +7,7 @@ import os
 import DWInversion
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, RobustScaler
 
+
 class DWWaterDetect:
 
     # initialize the variables
@@ -43,7 +44,7 @@ class DWWaterDetect:
         """
 
         # initialize with basic bands for MNDWI and NDWI and MBWI
-        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir', 'Mir2', 'RedEdg1', 'RedEdg2',
+        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir2', 'Mir', #'RedEdg1', 'RedEdg2',
                            self.config.reference_band}
 
         if include_rgb:
@@ -76,29 +77,6 @@ class DWWaterDetect:
 
         return index
 
-    def calc_swi(self, bands, save_index=False):
-        """
-        Calculates the Snow Water Index and adds it to the bands dictionary
-        :param save_index: Inform if the index should be saved as array in the output folder
-        :param bands: Bands dictionary with the raster bands
-        :param factor: Factor to multiply the Green band as proposed in the original paper
-        :return: mbwi array
-        """
-        swi = bands['Green'] * (bands['Nir'] - bands['Mir2']) / ((bands['Green'] + bands['Nir'])*(bands['Nir']+ bands['Mir2']))
-
-        mask = np.isinf(swi) | np.isnan(swi) | self.loader.invalid_mask
-        swi = np.ma.array(swi, mask=mask, fill_value=-9999)
-
-        self.loader.update_mask(mask)
-
-        bands.update({'swi': swi.filled()})
-
-        if save_index:
-            self.saver.save_array(swi.filled(), self.loader.current_image_name + '_mbwi', no_data_value=-9999)
-
-        return swi.filled()
-
-
     def calc_mbwi(self, bands, factor=3, save_index=False):
         """
         Calculates the Multiband Water Index and adds it to the bands dictionary
@@ -107,10 +85,25 @@ class DWWaterDetect:
         :param factor: Factor to multiply the Green band as proposed in the original paper
         :return: mbwi array
         """
-        mbwi = factor * bands['Green'] - bands['Red'] - bands['Nir'] - bands['Mir'] - bands['Mir2']
 
-        mbwi = RobustScaler(copy=False).fit_transform(mbwi)
-        mbwi = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi)
+        mask = self.loader.invalid_mask
+
+        # changement for negative SRE values scene
+        min_cte = np.min([np.min(bands['Green'][~mask]), np.min(bands['Red'][~mask]),
+                          np.min(bands['Nir'][~mask]), np.min(bands['Mir'][~mask]), np.min(bands['Mir2'][~mask])])
+
+        if min_cte <= 0:
+            min_cte = -min_cte + 0.001
+        else:
+            min_cte = 0
+
+        mbwi = factor * (bands['Green']+min_cte) - (bands['Red']+min_cte) - (bands['Nir']+min_cte)\
+               - (bands['Mir']+min_cte) - (bands['Mir2']+min_cte)
+
+        mbwi[~mask] = RobustScaler(copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
+        # mbwi[~mask] = QuantileTransformer(copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
+        mbwi[~mask] = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
+
 
         mask = np.isinf(mbwi) | np.isnan(mbwi) | self.loader.invalid_mask
         mbwi = np.ma.array(mbwi, mask=mask, fill_value=-9999)
@@ -131,7 +124,7 @@ class DWWaterDetect:
         :param bands: Bands dictionary with the raster bands
         :return: mbwi array
         """
-        awei = bands['Blue'] + 2.5*bands['Green'] - 1.5*(bands['Red'] + bands['Mir']) - 0.25*bands['Mir2']
+        awei = bands['Blue'] + 2.5*bands['Green'] - 1.5*(bands['Nir'] + bands['Mir']) - 0.25*bands['Mir2']
 
         awei = RobustScaler(copy=False).fit_transform(awei)
         awei = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(awei)
@@ -189,7 +182,8 @@ class DWWaterDetect:
                 image.load_masks(self.config.get_masks_list(image.product),
                                  self.config.external_mask,
                                  self.config.mask_name,
-                                 self.config.mask_valid_value)
+                                 self.config.mask_valid_value,
+                                 self.config.mask_invalid_value)
 
                 # Test if there is enough valid pixels in the clipped images
                 if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.config.maximum_invalid:
@@ -197,7 +191,7 @@ class DWWaterDetect:
                     continue
 
                 # calc the necessary indexes and update the image's mask
-                self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi', 'awei', 'swi'], save_index=False)
+                self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=self.config.save_indices)
 
                 ##################################################################
                 if self.config.texture_stretching:
@@ -214,32 +208,38 @@ class DWWaterDetect:
                 # loop through the bands combinations to make the clusters
                 for band_combination in self.config.clustering_bands:
 
-                    print('Calculating clusters for the following combination of bands:')
-                    print(band_combination)
+                    try:
 
-                    # if pdf_reports, create a FileMerger for this specific band combination
-                    if self.config.pdf_reports:
-                        pdf_merger_image = PdfFileMerger()
-                        pdf_merger_image.append(composite_name + '.pdf')
-                    else:
-                        pdf_merger_image = None
+                        print('Calculating clusters for the following combination of bands:')
+                        print(band_combination)
 
-                    # create a dw_image object with the water mask and all the results
-                    dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+                        # if pdf_reports, create a FileMerger for this specific band combination
+                        if self.config.pdf_reports:
+                            pdf_merger_image = PdfFileMerger()
+                            pdf_merger_image.append(composite_name + '.pdf')
+                        else:
+                            pdf_merger_image = None
 
-                    # calc the inversion parameter and save it to self.rasterbands in the dictionary
-                    if self.config.inversion:
-                        self.calc_inversion_parameter(dw_image, pdf_merger_image)
+                        # create a dw_image object with the water mask and all the results
+                        dw_image = self.create_water_mask(band_combination, pdf_merger_image)
 
-                    # save the graphs
-                    if self.config.plot_graphs:
-                        self.save_graphs(dw_image, pdf_merger_image)
+                        # calc the inversion parameter and save it to self.rasterbands in the dictionary
+                        if self.config.inversion:
+                            self.calc_inversion_parameter(dw_image, pdf_merger_image)
 
-                    if self.config.pdf_reports:
-                        pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
-                                                           self.config.parameter,
-                                                           pdf_merger_image,
-                                                           self.saver.output_folder))
+                        # save the graphs
+                        if self.config.plot_graphs:
+                            self.save_graphs(dw_image, pdf_merger_image)
+
+                        if self.config.pdf_reports:
+                            pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
+                                                               self.config.parameter,
+                                                               pdf_merger_image,
+                                                               self.saver.output_folder))
+                    except Exception as err:
+                        print('**** ERROR DURING CLUSTERING ****')
+                        # todo: should we close the pdf merger in case of error?
+                        print(err)
 
             except Exception as err:
                 print('****** ERROR ********')
@@ -424,7 +424,7 @@ class DWWaterDetect:
 
         if 'mndwi' in indexes_list:
             # calculate the MNDWI, update the mask and saves it
-            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir2'], save_index=save_index)
+            self.calc_nd_index('mndwi', raster_bands['Green'], raster_bands['Mir'], save_index=save_index)
 
         if 'ndwi' in indexes_list:
             # calculate the NDWI update the mask and saves it
@@ -441,10 +441,6 @@ class DWWaterDetect:
         if 'awei' in indexes_list:
             # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
             self.calc_awei(raster_bands, save_index=save_index)
-
-        if 'swi' in indexes_list:
-            # calculate the MultiBand index using: Green, Red, Nir, Mir1, Mir2
-            self.calc_swi(raster_bands, save_index=save_index)
 
         # update the final mask
         self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
