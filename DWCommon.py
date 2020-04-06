@@ -21,10 +21,11 @@ class DWConfig:
 
     _config_file = 'WaterDetect.ini'
     _defaults = {'reference_band': 'Red',
+                 'maximum_invalid': '0.8',
                  'create_composite': 'True',
                  'pdf_reports': 'False',
+                 'save_indices': 'False',
                  'texture_streching': 'False',
-                 'maximum_invalid': '0.8',
                  'clustering_method': 'aglomerative',
                  'min_clusters': '1',
                  'max_clusters': '5',
@@ -351,7 +352,7 @@ class DWutils:
 
     @staticmethod
     def rgb_burn_in(red, green, blue, burn_in_array, color=None, min_value=None, max_value=None, colormap='viridis',
-                    fade=1, uniform_distribution=False, no_data_value=-9999):
+                    fade=1, uniform_distribution=False, no_data_value=-9999, valid_value=1):
         """
         Burn in a mask or a specific parameter into an RGB image for visualization purposes.
         The burn_in_array will be copied where values are different from no_data_value.
@@ -370,9 +371,9 @@ class DWutils:
         """
 
         if color:
-            new_red = np.where(burn_in_array == no_data_value, red*fade, color[0])
-            new_green = np.where(burn_in_array == no_data_value, green*fade, color[1])
-            new_blue = np.where(burn_in_array == no_data_value, blue*fade, color[2])
+            new_red = np.where(burn_in_array == valid_value, color[0], red*fade)
+            new_green = np.where(burn_in_array == valid_value, color[1], green*fade)
+            new_blue = np.where(burn_in_array == valid_value, color[2], blue*fade)
 
         else:
             # the mask is where the value equals no_data_value
