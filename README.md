@@ -3,7 +3,7 @@ Water Detect Algorithm
 
 The objective of this product is generate water masks automatically for Sentinel 2 and Landsat images.
 The required libraries are:
-GDAL>=3.0.2
+GDAL>=3.0.2\n
 snappy>=7.0.0
 matplotlib>=3.1.2
 PyPDF2>=1.26.0
