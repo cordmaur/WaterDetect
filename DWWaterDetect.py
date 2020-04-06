@@ -6,7 +6,7 @@ from PyPDF2 import PdfFileMerger
 import os
 import DWInversion
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, RobustScaler
-
+from osgeo import gdal
 
 class DWWaterDetect:
 
@@ -76,6 +76,30 @@ class DWWaterDetect:
             self.saver.save_array(index, self.loader.current_image_name + '_' + index_name, no_data_value=-9999)
 
         return index
+
+    def calc_m_nd_index(self, index_name, band1, band2, band3, band4, save_index=False):
+        """
+        Calculates a normalized difference index, adds it to the bands dict and update the mask in loader
+        :param save_index: Inidicate if we should save this index to a raster image
+        :param index_name: name of index to be used as key in the dictionary
+        :param band1: first band to be used in the normalized difference
+        :param band2: second band to be used in the normalized difference
+        :return: index array
+        """
+
+        first = np.where(band1 >= band2, band1, band2)
+        second = np.where(band3 <= band4, band3, band4)
+
+        index, mask = DWutils.calc_normalized_difference(first, second, self.loader.invalid_mask)
+        self.loader.update_mask(mask)
+
+        self.loader.raster_bands.update({index_name: index})
+
+        if save_index:
+            self.saver.save_array(index, self.loader.current_image_name + '_' + index_name, no_data_value=-9999)
+
+        return index
+
 
     def calc_mbwi(self, bands, factor=3, save_index=False):
         """
@@ -288,9 +312,9 @@ class DWWaterDetect:
 
         # save the water mask and the clustering results
         self.saver.save_array(dw_image.water_mask, dw_image.product_name + '_water_mask',
-                              opt_relative_path=dw_image.product_name)
+                              opt_relative_path=dw_image.product_name, dtype=gdal.GDT_Byte)
         self.saver.save_array(dw_image.cluster_matrix, dw_image.product_name + '_clusters',
-                              opt_relative_path=dw_image.product_name)
+                              opt_relative_path=dw_image.product_name, dtype=gdal.GDT_Byte)
         # unload bands
 
         # if there is a pdf to create, burn-in the mask into the RGB composite
@@ -443,7 +467,7 @@ class DWWaterDetect:
             self.calc_awei(raster_bands, save_index=save_index)
 
         # update the final mask
-        self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask')
+        self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask', dtype=gdal.GDT_Byte)
 
     def sliding_window(Self, img, patch_size=5,
                        istep=1, jstep=1, scale=1.0):
