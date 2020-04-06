@@ -258,7 +258,7 @@ class DWImageClustering:
                 param_list.append(clt['mean'][idx_band1] - clt['mean'][idx_band2])
 
             elif param == 'value':
-                if (clt['pixels'] > 5) and (clt['mean'][available_bands.index('Nir')] < 0.25*4):
+                if (clt['pixels'] > 5) and (clt['mean'][available_bands.index('Mir2')] < 0.25*4):
                     param_list.append(clt['mean'][idx_band1])
                 else:
                     param_list.append(-1)

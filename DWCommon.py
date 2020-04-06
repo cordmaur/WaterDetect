@@ -533,13 +533,13 @@ class DWutils:
         # return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
 
     @staticmethod
-    def array2raster(filename, array, geo_transform, projection, nodatavalue=0):
+    def array2raster(filename, array, geo_transform, projection, nodatavalue=0, dtype=gdal.GDT_Float32):
 
         cols = array.shape[1]
         rows = array.shape[0]
 
         driver = gdal.GetDriverByName('GTiff')
-        out_raster = driver.Create(filename, cols, rows, 1, gdal.GDT_Float32)
+        out_raster = driver.Create(filename, cols, rows, 1, dtype, options=['COMPRESS=PACKBITS'])
         out_raster.SetGeoTransform(geo_transform)
         out_raster.SetProjection(projection)
         outband = out_raster.GetRasterBand(1)
