@@ -2,14 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Copyright (C) CNES - All Rights Reserved
-This file is subject to the terms and conditions defined in
-file 'LICENSE.md', which is part of this source code package.
-
-Author:         Peter KETTIG <peter.kettig@cnes.fr>
-Corresponding Author : jean-michel.martinez@ird.fr, UMR GET
-Project:        WaterColor, CNES
-Created on:     Fri Nov 23 10:30:20 2018
+Author:
+Corresponding Author :
+Project:
+Created on:
 """
 
 import DWWaterDetect
@@ -25,7 +21,7 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--product", help='The product to be processed (S2_Theia, Landsat, S2_L1C, etc.)',
                         default='S2_THEIA', type=str)
     parser.add_argument('-g', '--off_graphs', help='Turns off the scatter plot graphs', action='store_true')
-    parser.add_argument('-c', '--config', help='Configuration .ini file.', type=str)
+    parser.add_argument('-c', '--config', help='Configuration .ini file. If not specified WaterDetect.ini is used as default', type=str)
 
     # product type (theia, sen2cor, landsat, etc.)
     # optional shape file
@@ -40,5 +36,3 @@ if __name__ == '__main__':
                                                product=args.product, config_file=args.config)
     water_detect.run()
 
-
-# -s ../../source/Shp/Area_Chad.shp -p S2_THEIA

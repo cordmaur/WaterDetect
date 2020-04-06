@@ -211,14 +211,18 @@ class DWImageClustering:
     def identify_water_cluster(self):
         """
         Finds the water cluster within all the clusters.
-        It can be done using MNDWI or Mir2 bands
+        It can be done using MNDWI, MBWI or Mir2 bands
         :return: water cluster object
         """
 
         if self.config.detect_water_cluster == 'maxmndwi':
             if 'mndwi' not in self.bands.keys():
                 raise OSError('MNDWI band necessary for detecting water with maxmndwi option')
+            water_cluster = self.detect_cluster('value', 'max', 'mndwi')
 
+        elif self.config.detect_water_cluster == 'maxmbwi':
+            if 'mbwi' not in self.bands.keys():
+                raise OSError('MBWI band necessary for detecting water with maxmbwi option')
             water_cluster = self.detect_cluster('value', 'max', 'mbwi')
 
         elif self.config.detect_water_cluster == 'minmir2':
@@ -447,7 +451,7 @@ class DWImageClustering:
         classifier = self.config.classifier
         clip_band = self.config.clip_band
 
-        if clustering == 'aglomerative':
+        if clustering == 'agglomerative':
             product_name = 'AC_'
         elif clustering == 'gauss_mixture':
             product_name = 'GM_'

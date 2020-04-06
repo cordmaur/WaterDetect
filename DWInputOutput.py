@@ -27,7 +27,7 @@ class DWLoader:
                  'string': '',
                  'subdir': 'GRANULE/*/IMG_DATA'}
 
-    def __init__(self, input_folder, shape_file, product):
+    def __init__(self, input_folder, shape_file, product, ref_band):
 
         # save the input folder (holds all the images) and the shapefile
         self.input_folder = DWutils.check_path(input_folder, is_dir=True)
@@ -37,7 +37,7 @@ class DWLoader:
         self.images = DWutils.get_directories(self.input_folder)
 
         # the product indicates if the images are S2_THEIA, LANDSAT, SEN2COR, etc.
-        self.product = product
+        self.product = product.upper()
 
         # index for iterating through the images list. Starts with the first image
         self._index = 0
@@ -50,7 +50,7 @@ class DWLoader:
         self.raster_bands = None
 
         # reference band for shape, projection and transformation as a GDAL object
-        self._ref_band = None
+        self._ref_band = ref_band
 
         # mask with the invalid pixels
         self.invalid_mask = False
@@ -70,6 +70,9 @@ class DWLoader:
             raise StopIteration
 
         self._index += 1
+
+        self.open_current_image(self._ref_band)
+
         return self
 
     @property
@@ -136,7 +139,7 @@ class DWLoader:
             split_subdir = self.product_dict['subdir'].split('/')
 
             for subdir in split_subdir:
-                if subdir  != '*':
+                if subdir != '*':
                     bands_path /= subdir
                 else:
                     # add the first directory (hopefully the only one) to the path
@@ -147,7 +150,7 @@ class DWLoader:
     def get_bands_files(self):
         """
         Retrieve the full path of bands saved for the current image, according to the product
-        :return: Posixpath of bands files
+        :return: Posix_path of bands files
         """
         print('Retrieving bands for image: ' + self.current_image_folder.as_posix())
 
