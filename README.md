@@ -6,7 +6,6 @@ The required libraries are:
 GDAL>=3.0.2
 
 snappy>=7.0.0
-
 matplotlib>=3.1.2
 
 PyPDF2>=1.26.0
