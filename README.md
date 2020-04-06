@@ -2,6 +2,16 @@
 Water Detect Algorithm
 
 The objective of this product is generate water masks automatically for Sentinel 2 and Landsat images.
+The required libraries are:
+GDAL>=3.0.2
+snappy>=7.0.0
+matplotlib>=3.1.2
+PyPDF2>=1.26.0
+scipy>=1.3.2
+scikit-learn>=0.22
+pysptools>=0.15.0
+
+
 
 To use it, you should clone the project to your repository and run "python runWaterColor.py --help"
 
