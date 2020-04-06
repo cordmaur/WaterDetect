@@ -14,7 +14,9 @@ scikit-learn>=0.22
 pysptools>=0.15.0 (optional)
 ```
 
-The test_
+The test_dependencies.py can be used to check if all libraries are loading correctly. Simply run:
+
+```python test_dependencies.py```
 
 To use it, you should clone the project to your repository and run "python runWaterColor.py --help"
 ```
