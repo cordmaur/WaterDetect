@@ -2,24 +2,22 @@
 Water Detect Algorithm
 
 The objective of this product is generate water masks automatically for Sentinel 2 and Landsat images.
-The required libraries are:
-GDAL>=3.0.2
 
+The required libraries are:
+```
+GDAL>=3.0.2
 snappy>=7.0.0
 matplotlib>=3.1.2
-
 PyPDF2>=1.26.0
-
 scipy>=1.3.2
-
 scikit-learn>=0.22
+pysptools>=0.15.0 (optional)
+```
 
-pysptools>=0.15.0
-
-
+The test_
 
 To use it, you should clone the project to your repository and run "python runWaterColor.py --help"
-
+```
 usage: runWaterColor.py [-h] -i INPUT -o OUT [-s SHP] [-p PRODUCT] [-g]
                         [-c CONFIG]
 
@@ -36,6 +34,7 @@ optional arguments:
   -c CONFIG, --config CONFIG
                         Configuration .ini file. If not specified
                         WaterDetect.ini is used as default
+```
 
 The input directory should contain the uncompressed folders for the images. The script will loop through all folders in the input directory and save the water masks, graphs and reports to the output folder. The output folder must be created beforehand.
 
