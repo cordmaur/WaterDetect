@@ -50,7 +50,8 @@ class DWLoader:
         self.raster_bands = None
 
         # reference band for shape, projection and transformation as a GDAL object
-        self._ref_band = ref_band
+        self._ref_band_name = ref_band
+        self._ref_band = None
 
         # mask with the invalid pixels
         self.invalid_mask = False
@@ -71,7 +72,7 @@ class DWLoader:
 
         self._index += 1
 
-        self.open_current_image(self._ref_band)
+        self.open_current_image(self._ref_band_name)
 
         return self
 
@@ -249,6 +250,7 @@ class DWLoader:
                 self.gdal_bands[band] = self._clipped_gdal_bands[band]
                 self.gdal_bands[band].FlushCache()
 
+        self._ref_band_name = ref_band
         self._ref_band = self.gdal_bands[ref_band]
         self.temp_dir = temp_dir
 
