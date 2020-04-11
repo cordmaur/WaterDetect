@@ -70,7 +70,10 @@ class DWConfig:
             str_value = self.return_defaults(section, key)
 
         if evaluate and str == type(str_value):
-            return ast.literal_eval(str_value)
+            try:
+                return ast.literal_eval(str_value)
+            except Exception as err:
+                return str_value
         else:
             return str_value
 
@@ -185,19 +188,6 @@ class DWConfig:
         return self.get_option('Clustering', 'max_train_size', evaluate=True)
 
     @property
-    def clip_band(self):
-        band = self.get_option('Clustering', 'clip_band', evaluate=False)
-
-        if band == 'None' or band == 'none' or band == '':
-            return None
-        else:
-            return band
-
-    @property
-    def clip_value(self):
-        return self.get_option('Clustering', 'clip_value', evaluate=True)
-
-    @property
     def score_index(self):
         return self.get_option('Clustering', 'score_index', evaluate=False)
 
@@ -242,6 +232,34 @@ class DWConfig:
             bands_lst = [bands_lst]
 
         return bands_lst
+
+    @property
+    def clip_band(self):
+        bands_lst = self.get_option('Clustering', 'clip_band', evaluate=True)
+
+        if type(bands_lst) == str:
+                return [bands_lst]
+        else:
+            return bands_lst if bands_lst is not None else []
+
+    @property
+    def clip_inf_value(self):
+        value = self.get_option('Clustering', 'clip_inf_value', evaluate=True)
+
+        if value is not None:
+            return value if type(value) is list else [value]
+        else:
+            return []
+
+    @property
+    def clip_sup_value(self):
+        value = self.get_option('Clustering', 'clip_sup_value', evaluate=True)
+
+        if value is not None:
+            return value if type(value) is list else [value]
+        else:
+            return []
+
 
     def get_masks_list(self, product):
 

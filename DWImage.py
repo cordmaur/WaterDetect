@@ -622,10 +622,17 @@ class DWImageClustering:
         else:
             self.clusters_labels = train_clusters_labels
 
-        # after obtaining the final labels, if clip MIR is not None, clip MIR above threshold
-        if self.config.clip_value:
-            self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &
-                                 (self.bands[self.config.clip_band][~self.invalid_mask] > self.config.clip_value)] = -1
+        # after obtaining the final labels, clip bands with superior limit
+        for band, value in zip(self.config.clip_band, self.config.clip_sup_value):
+            if value is not None:
+                self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &
+                                     (self.bands[band][~self.invalid_mask] > value)] = -1
+
+        # after obtaining the final labels, clip bands with inferior limit
+        for band, value in zip(self.config.clip_band, self.config.clip_inf_value):
+            if value is not None:
+                self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &
+                                     (self.bands[band][~self.invalid_mask] < value)] = -1
 
         # create an cluster array based on the cluster result (water will be value 1)
         return self.create_matrice_cluster(ind_data)
