@@ -216,21 +216,20 @@ class DWWaterDetect:
                 # calc the necessary indices and update the image's mask
                 self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=self.config.save_indices)
 
-                # loop through the bands combinations to make the clusters
-                for band_combination in self.config.clustering_bands:
+                # if the method is average_results, the loop through bands_combinations will be done in DWImage module
+                if self.config.average_results:
                     try:
-                        print('Calculating clusters for the following combination of bands:')
-                        print(band_combination)
+                        print('Calculating water mask considering the average for these combinations:')
+                        print(self.config.clustering_bands)
 
-                        # if pdf_reports, create a FileMerger for this specific band combination
+                        # Create a file merger for this report
                         if self.config.pdf_reports:
                             pdf_merger_image = PdfFileMerger()
                             pdf_merger_image.append(composite_name + '.pdf')
                         else:
                             pdf_merger_image = None
 
-                        # create a dw_image object with the water mask and all the results
-                        dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+                        dw_image = self.create_water_mask(self.config.clustering_bands, pdf_merger_image)
 
                         # calc the inversion parameter and save it to self.rasterbands in the dictionary
                         if self.config.inversion:
@@ -247,9 +246,46 @@ class DWWaterDetect:
                                                                pdf_merger_image,
                                                                self.saver.output_folder))
                     except Exception as err:
-                        print('**** ERROR DURING CLUSTERING ****')
+                        print('**** ERROR DURING AVERAGE CLUSTERING ****')
                         # todo: should we close the pdf merger in case of error?
                         print(err)
+                    pass
+
+                # Otherwise, loop through the bands combinations to make the clusters
+                else:
+                    for band_combination in self.config.clustering_bands:
+                        try:
+                            print('Calculating clusters for the following combination of bands:')
+                            print(band_combination)
+
+                            # if pdf_reports, create a FileMerger for this specific band combination
+                            if self.config.pdf_reports:
+                                pdf_merger_image = PdfFileMerger()
+                                pdf_merger_image.append(composite_name + '.pdf')
+                            else:
+                                pdf_merger_image = None
+
+                            # create a dw_image object with the water mask and all the results
+                            dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+
+                            # calc the inversion parameter and save it to self.rasterbands in the dictionary
+                            if self.config.inversion:
+                                self.calc_inversion_parameter(dw_image, pdf_merger_image)
+
+                            # save the graphs
+                            if self.config.plot_graphs:
+                                self.save_graphs(dw_image, pdf_merger_image)
+
+                            # append the pdf report of this image
+                            if self.config.pdf_reports:
+                                pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
+                                                                   self.config.parameter,
+                                                                   pdf_merger_image,
+                                                                   self.saver.output_folder))
+                        except Exception as err:
+                            print('**** ERROR DURING CLUSTERING ****')
+                            # todo: should we close the pdf merger in case of error?
+                            print(err)
 
             except Exception as err:
                 print('****** ERROR ********')

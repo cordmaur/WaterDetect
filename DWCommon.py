@@ -168,6 +168,14 @@ class DWConfig:
         return self.get_option('General', 'maximum_invalid', evaluate=True)
 
     @property
+    def average_results(self):
+        return self.get_option('Clustering', 'average_results', evaluate=True)
+
+    @property
+    def min_positive_pixels(self):
+        return self.get_option('Clustering', 'min_positive_pixels', evaluate=True)
+
+    @property
     def clustering_method(self):
         return self.get_option('Clustering', 'clustering_method', evaluate=False)
 
@@ -291,6 +299,16 @@ class DWutils:
         return np.bitwise_and(array, bit_values)
 
     @staticmethod
+    def listify(lst, uniques=[]):
+        # pdb.set_trace()
+        for item in lst:
+            if isinstance(item, list):
+                uniques = DWutils.listify(item, uniques)
+            else:
+                uniques.append(item)
+        return uniques.copy()
+
+    @staticmethod
     def check_path(path_str, is_dir=False):
         """
         Check if the path/file exists and returns a Path variable with it
@@ -324,7 +342,7 @@ class DWutils:
         return [i for i in input_folder.iterdir() if i.is_dir()]
 
     @staticmethod
-    def calc_normalized_difference(img1, img2, mask=False):
+    def calc_normalized_difference(img1, img2, mask=None):
         """
         Calc the normalized difference of given arrays (img1 - img2)/(img1 + img2).
         Updates the mask if any invalid numbers (ex. np.inf or np.nan) are encountered
@@ -335,7 +353,10 @@ class DWutils:
         """
 
         # changement for negative SRE scenes
-        min_cte = np.min([np.min(img1[~mask]), np.min(img2[~mask])])
+        if mask is not None:
+            min_cte = np.min([np.min(img1[~mask]), np.min(img2[~mask])])
+        else:
+            min_cte = np.min([np.min(img1), np.min(img2)])
 
         if min_cte <= 0:
             min_cte = -min_cte + 0.001

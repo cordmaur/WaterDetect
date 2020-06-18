@@ -72,7 +72,7 @@ class DWImageClustering:
         # todo: check the band for Principal Component Analysis
 
         # check if the list contains the required bands
-        for band in bands_keys:
+        for band in DWutils.listify(bands_keys):
             if band == 'otsu' or band == 'canny':
                 continue
 
@@ -473,8 +473,12 @@ class DWImageClustering:
 
         if clip_band:
             product_name += 'CM_'
-        for key in self.bands_keys:
-            product_name += str(key)
+
+        if self.config.average_results:
+            product_name += f'Average_gt{self.config.min_positive_pixels}'
+        else:
+            for key in self.bands_keys:
+                product_name += str(key)
 
         return product_name
 
@@ -554,6 +558,21 @@ class DWImageClustering:
 
         elif self.bands_keys[0] == 'canny':
             self.cluster_matrix = self.apply_canny_treshold()
+
+        elif self.config.average_results:
+            self.cluster_matrix = None
+
+            # loop through the bands combinations
+            for band_combination in self.config.clustering_bands:
+                self.bands_keys = band_combination
+
+                if self.cluster_matrix is None:
+                    self.cluster_matrix = np.where(self.apply_clustering() == 1, 1, 0)
+                else:
+                    new_cluster_result = np.where(self.apply_clustering() == 1, 1, 0)
+                    self.cluster_matrix += new_cluster_result
+
+            self.cluster_matrix = np.where(self.cluster_matrix >= self.config.min_positive_pixels, 1, 0)
 
         else:
             self.cluster_matrix = self.apply_clustering()
