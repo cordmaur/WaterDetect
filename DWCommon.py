@@ -9,6 +9,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import QuantileTransformer
 
+#Modif Marion
+from lxml import etree
+
 from osgeo import gdal
 import numpy as np
 from pathlib import Path
@@ -817,3 +820,74 @@ class DWutils:
 
         return gdal_mask
 
+#------------------
+    @staticmethod
+    def extract_angles_from_xml(xml):
+        """
+        Function to extract Zenith and Azimuth angles values from an xml Sentinel 2 file
+
+        Parameters
+        ----------
+        xml : TYPE xml file
+            DESCRIPTION Filepath of the metadata file from L2A Sentinel 2 data: example "SENTINEL2A_20200328-104846-345_L2A_T31TFJ_C_V2-2_MTD_ALL.xml"
+
+        Returns
+        -------
+        SZA : TYPE float
+            DESCRIPTION. Sun zenith angle
+        SazA : TYPE float
+            DESCRIPTION. Sun azimuth angle
+        zenith_angle : TYPE list of strings
+            DESCRIPTION. Mean_Viewing_Incidence_Angle_List for all the bands
+        azimuth_angle : TYPE list of strings
+            DESCRIPTION. Mean_Viewing_Incidence_Angle_List for all the bands
+
+        """
+
+        # Parsing xml file
+        parser = etree.XMLParser()
+        tree = etree.parse(xml, parser)
+
+        root = tree.getroot()  # to iterate over the tree
+
+        zenith_angle = root.xpath('//ZENITH_ANGLE[@unit="deg"]/text()')
+        # zenith_angle[0] = sun_angle Mean_Viewing_Incidence_Angle_List for B2, B3....
+
+        azimuth_angle = root.xpath('//AZIMUTH_ANGLE[@unit="deg"]/text()')
+        # azimuth_angle[0] = sun_angle and then Mean_Viewing_Incidence_Angle_List for B2, B3....
+
+        SZA = np.deg2rad(float(zenith_angle[0])) #radian
+        SazA = float(azimuth_angle[0])
+
+        # Remove first element for both lists
+        zenith_angle.pop(0)
+        azimuth_angle.pop(0)
+
+        #return SZA, SazA, zenith_angle, azimuth_angle
+
+        g = []
+
+        for i in range(len(zenith_angle)):
+            # Degrees to radian conversion
+            viewA = np.deg2rad(float(zenith_angle[i]))
+            phi = np.deg2rad((SazA - float(azimuth_angle[i])))
+
+            Tetag = np.cos(viewA) * np.cos(SZA) - np.sin(viewA) * np.sin(SZA) * np.cos(phi)
+            # Convert result to degrees
+            g.append(np.degrees(np.arccos(Tetag)))
+
+        print("---------------------------")
+        print("VALEURS ANGLES POUR GLINT")
+        print(g)
+
+
+
+        # Test about glint values
+        if min(g) < 19:
+            print('GLINT SUR IMAGE ' + xml)
+        elif min(g) >=19 and min(g)<29:
+            print('MIGHT BE GLINT SUR IMAGE ' + xml)
+        else:
+            print("PAS DE GLINT SUR IMAGE "+ xml)
+        print("---------------------------")
+        return g

@@ -198,6 +198,15 @@ class DWWaterDetect:
                 else:
                     composite_name = None
 
+                # calc the sun glint rejection using the angle Tetag between vectors pointing in the surface-to-satellite
+                #  and specular reflection directions
+                DWutils.check_path(
+                    self.loader.current_image_folder.as_posix() + '/' + image.current_image_name + '_MTD_ALL.xml')
+
+                DWutils.extract_angles_from_xml(
+                    self.loader.current_image_folder.as_posix() + '/' + image.current_image_name + '_MTD_ALL.xml')
+
+
                 # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
                 image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
