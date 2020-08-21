@@ -44,7 +44,7 @@ class DWWaterDetect:
         """
 
         # initialize with basic bands for MNDWI and NDWI and MBWI
-        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir2', 'Mir', #'RedEdg1', 'RedEdg2',
+        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir2', 'Mir', 'RedEdg1', 'RedEdg2',
                            self.config.reference_band}
 
         if include_rgb:
@@ -165,6 +165,23 @@ class DWWaterDetect:
 
         return awei.filled()
 
+    def list_param(self):
+        """
+        :return: nl: new list of the parameter separated by a "-"
+                len_list: number of parameter
+                list_param: list of string
+        """
+        list_param = []
+        if ',' in self.config.parameter:
+            list_param = self.config.parameter.split(',')
+        else:
+            list_param.append(self.config.parameter)
+
+        len_list = len(list_param)
+        nl = '-'.join(list_param)
+
+        return nl, len_list, list_param
+
     def run(self):
         """
         Loop through all directories in input folder, extract water pixels and save results to output folder
@@ -176,6 +193,9 @@ class DWWaterDetect:
 
         # if pdf_report is true, creates a FileMerger to assembly the FullReport
         pdf_merger = PdfFileMerger() if self.config.pdf_reports else None
+
+        #list of parameters
+        liste_parametre, nb_param, list_param = self.list_param()
 
         # Iterate through the loader. Each image is a folder in the input directory.
         for image in self.loader:
@@ -279,7 +299,10 @@ class DWWaterDetect:
 
                             # calc the inversion parameter and save it to self.rasterbands in the dictionary
                             if self.config.inversion:
-                                self.calc_inversion_parameter(dw_image, pdf_merger_image)
+                                if nb_param > 1:
+                                    self.calc_inversion_multiparameter(dw_image, pdf_merger_image, list_param)
+                                else:
+                                    self.calc_inversion_parameter(dw_image, pdf_merger_image)
 
                             # save the graphs
                             if self.config.plot_graphs:
@@ -422,21 +445,124 @@ class DWWaterDetect:
                                                                     uniform_distribution=self.config.uniform_distribution,
                                                                     no_data_value=-9999))
 
+    def calc_inversion_multiparameter(self, dw_image, pdf_merger_image, list_param):
+        """
+        Calculate the parameters in config.parameter and save it to the dictionary of bands.
+        This will make it easier to make graphs correlating any band with the parameter.
+        Also, checks if there are reports, then add the parameter to it.
+        :return: The parameter matrix
+        """
+
+        # initialize the parameter with None
+        parameter = None
+
+        mask = self.loader.invalid_mask
+
+        band = []
+        red = self.loader.raster_bands['Red']
+        gray = np.dot(red, 1 / 255)
+        # rred = np.dot(red, 1000)
+
+        self.saver.save_array(gray, 'red.tif', self.saver.output_folder, no_data_value=-9999)
+        band = [red]
+
+        band.append(dw_image.water_mask)
+
+        for i in range(0, len(list_param)):
+            if list_param[i] == 'turb-dogliotti':
+                Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
+                                                    self.loader.raster_bands['Nir'], mask)
+
+                parameter = self.inversion_algos.turb_Dogliotti(Red, Nir)
+
+            elif list_param[i] == 'spm-get':
+                Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
+                                                    self.loader.raster_bands['Nir'], mask)
+
+                parameter = self.inversion_algos.SPM_GET(Red, Nir,
+                                                         self.loader.product)
+
+            elif list_param[i] == 'chl-lins':
+                Red, RedEdg1 = DWutils.remove_negatives(self.loader.raster_bands['Red'],
+                                                        self.loader.raster_bands['RedEdg1'],
+                                                        mask)
+
+                parameter = self.inversion_algos.chl_lins(Red, RedEdg1)
+
+            elif list_param[i] == 'aCDOM-brezonik':
+                Red, RedEdg2 = DWutils.remove_negatives(self.loader.raster_bands['Red'],
+                                                        self.loader.raster_bands['RedEdg2'],
+                                                        mask)
+
+                parameter = self.inversion_algos.aCDOM_brezonik(Red, RedEdg2,
+                                                                self.loader.product)
+
+            elif list_param[i] == 'chl-giteslon':
+                # TODO: adapt remove negatives function so it can have more than 2 input bands
+                # Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
+                #                                     self.loader.raster_bands['Nir'], mask)
+
+                parameter = self.inversion_algos.chl_giteslon(self.loader.raster_bands['Red'],
+                                                              self.loader.raster_bands['RedEdg1'],
+                                                              self.loader.raster_bands['RedEdg2'])
+
+            if parameter is not None:
+                # print(parameter.shape)
+                # clear the parameters array and apply the Water mask, with no_data_values
+
+                param = DWutils.apply_mask(parameter,
+                                           ~(np.where(dw_image.water_mask == 255, 0, dw_image.water_mask).astype(
+                                               bool)),
+                                           -9999)
+                # save the calculated parameter
+                self.saver.save_array(param, list_param[i], no_data_value=-9999)
+                band.append(param)
+
+                if pdf_merger_image is not None:
+                    max_value, min_value = self.calc_param_limits(param)
+
+                    pdf_merger_image.append(self.create_colorbar_pdf(product_name='colorbar_' + list_param[i],
+                                                                     colormap=self.config.colormap,
+                                                                     min_value=min_value,
+                                                                     max_value=max_value))
+
+                    pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=list_param[i],
+                                                                        burn_in_array=param,
+                                                                        color=None,
+                                                                        fade=0.8,
+                                                                        min_value=min_value,
+                                                                        max_value=max_value,
+                                                                        opt_relative_path=None,
+                                                                        colormap=self.config.colormap,
+                                                                        uniform_distribution=self.config.uniform_distribution,
+                                                                        no_data_value=-9999))
+
+        # stack arrays
+        stack = np.array(band)
+        # create a tif with all bands given as parameter
+        self.saver.save_multiband(stack, "multiband_" + self.list_param()[0], self.saver.output_folder,
+                                  no_data_value=-9999)
+
     def calc_param_limits(self, parameter, no_data_value=-9999):
 
         valid = parameter[parameter != no_data_value]
-
-        min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
-        max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
-        return max_value*1.1, min_value*0.8
+        # min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
+        min_value = np.quantile(valid, 0.25) if self.config.min_param_value is None else self.config.min_param_value
+        # max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
+        max_value = np.quantile(valid, 0.75) if self.config.max_param_value is None else self.config.max_param_value
+        return max_value * 1.1, min_value * 0.8
 
     def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
 
         filename = self.saver.output_folder.joinpath(product_name + '.pdf')
 
+        p_name = product_name.split('_')
+        name_param = p_name[1]
+
         DWutils.create_colorbar_pdf(product_name=filename,
                                     title=self.saver.area_name + ' ' + self.saver.base_name,
-                                    label=self.config.parameter + ' ' + self.config.parameter_unit,
+                                    label=name_param + ' ' + DWConfig._units[name_param],
+                                    # label=self.config.parameter + ' ' + self.config.parameter_unit,
                                     colormap=colormap,
                                     min_value=min_value,
                                     max_value=max_value)
@@ -460,7 +586,7 @@ class DWWaterDetect:
                                                uniform_distribution=False,
                                                no_data_value=no_data_value,
                                                valid_value=valid_value)
-
+        print('-------------------------------TEST PDF---------------------------')
         # save the RGB auxiliary tif and gets the full path filename
         filename = self.saver.save_rgb_array(red=red * 10000,
                                              green=green * 10000,

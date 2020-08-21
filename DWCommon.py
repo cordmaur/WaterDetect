@@ -46,8 +46,8 @@ class DWConfig:
 
     _units = {'turb-dogliotti': 'FNU',
               'spm-get': 'mg/l',
-              'chl_lins': 'mg/m^3',
-              'chl_giteslon': 'mg/m^3',
+              'chl-lins': 'mg/m^3',
+              'chl-giteslon': 'mg/m^3',
               'aCDOM-brezonik': 'Absorption Coef'}
 
     def __init__(self, config_file=None):
@@ -618,6 +618,43 @@ class DWutils:
         print('Saving image: ' + filename)
         return
 
+    # -----------------------------------------------
+    @staticmethod
+    def array2multiband(filename, array, geo_transform, projection, nodatavalue=0, dtype=gdal.GDT_Float32):
+        print('-----------------------------------------------')
+        print('JE FAIS LE RASTER MULTILAYERS')
+
+        cols = array[0].shape[1]
+        rows = array[0].shape[0]
+        print(cols, rows)
+        nb_bands = len(array)
+
+        driver = gdal.GetDriverByName('GTiff')
+        out_raster = driver.Create(filename, cols, rows, nb_bands, dtype, options=['COMPRESS=LZW'])
+        out_raster.SetGeoTransform(geo_transform)
+        out_raster.SetProjection(projection)
+
+        # [out_raster.GetRasterBand(i) for i in range(0,nb_bands)]
+
+        for i in range(0, nb_bands):
+            outband = out_raster.GetRasterBand(i + 1)
+            outband.SetNoDataValue(nodatavalue)
+            outband.WriteArray(array[i])
+
+        # outband = out_raster.GetRasterBand(2)
+        # outband.SetNoDataValue(nodatavalue)
+        # outband.WriteArray(green)
+        #
+        # outband = out_raster.GetRasterBand(3)
+        # outband.SetNoDataValue(nodatavalue)
+        # outband.WriteArray(blue)
+
+        outband.FlushCache()
+        print('Saving image: ' + filename)
+        print('-----------------------------------------------')
+        return
+
+# ------------------------------------------------
     @staticmethod
     def get_train_test_data(data, train_size, min_train_size, max_train_size):
         """
@@ -752,7 +789,9 @@ class DWutils:
         # Set the colormap and norm to correspond to the data for which
         # the colorbar will be used.
 
-        norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+        #norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+        norm = matplotlib.colors.LogNorm(vmin=min_value, vmax=max_value)
+
         #
         # cdict = {'red': ((0.0, 0.0, 0.0),
         #                  (0.5, 0.0, 0.0),
@@ -891,3 +930,36 @@ class DWutils:
             print("PAS DE GLINT SUR IMAGE "+ xml)
         print("---------------------------")
         return g
+
+    @staticmethod
+    def remove_negatives(b1, b2, mask=None):
+        """
+        Remove negatives values of given arrays b1 and b2, except masked values.
+
+        :param b1: first array
+        :param b2: second array
+        :param mask: initial mask
+        :return: nd arrays without negatives values
+        """
+
+        if mask is not None:
+            min_cte = np.min([np.min(b1[~mask]), np.min(b2[~mask])])
+        else:
+            min_cte = np.min([np.min(b1), np.min(b2)])
+
+        if min_cte <= 0:
+            # test avec 0.001 puis 0.0001
+            # min_cte = - min_cte + 0.0001
+            # b1 = b1 + min_cte
+            # b2 = b2 + min_cte
+            min_cte = 0.001
+        else:
+            min_cte = 0
+
+        b1 = np.where(b1 >= 0, b1, min_cte)
+        b2 = np.where(b2 >= 0, b2, min_cte)
+
+        b1 = np.ma.array(b1, mask=mask, fill_value=-9999).filled()
+        b2 = np.ma.array(b2, mask=mask, fill_value=-9999).filled()
+
+        return b1, b2
