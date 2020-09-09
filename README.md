@@ -1,4 +1,10 @@
 # WaterDetect
+
+Author:
+Supervisor:
+Article: In version by RSE: TITLE
+Funding project: 
+
 Water Detect Algorithm
 
 The objective of this product is generate water masks automatically for Sentinel 2 and Landsat images.
