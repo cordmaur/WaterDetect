@@ -218,14 +218,6 @@ class DWWaterDetect:
                 else:
                     composite_name = None
 
-                # calc the sun glint rejection using the angle Tetag between vectors pointing in the surface-to-satellite
-                #  and specular reflection directions
-                DWutils.check_path(
-                    self.loader.current_image_folder.as_posix() + '/' + image.current_image_name + '_MTD_ALL.xml')
-
-                DWutils.extract_angles_from_xml(
-                    self.loader.current_image_folder.as_posix() + '/' + image.current_image_name + '_MTD_ALL.xml')
-
 
                 # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
                 image.load_raster_bands(self.necessary_bands(include_rgb=False))
@@ -260,9 +252,16 @@ class DWWaterDetect:
 
                         dw_image = self.create_water_mask(self.config.clustering_bands, pdf_merger_image)
 
+                        # calculate the sun glint rejection and add it to the pdf report
+                        self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+
                         # calc the inversion parameter and save it to self.rasterbands in the dictionary
+                        # check if working with average results
                         if self.config.inversion:
-                            self.calc_inversion_parameter(dw_image, pdf_merger_image)
+                            if nb_param > 1:
+                                self.calc_inversion_multiparameter(dw_image, pdf_merger_image, list_param)
+                            else:
+                                self.calc_inversion_parameter(dw_image, pdf_merger_image)
 
                         # save the graphs
                         if self.config.plot_graphs:
@@ -296,6 +295,9 @@ class DWWaterDetect:
 
                             # create a dw_image object with the water mask and all the results
                             dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+
+                            # calculate the sun glint rejection and add it to the pdf report
+                            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
                             # calc the inversion parameter and save it to self.rasterbands in the dictionary
                             if self.config.inversion:
@@ -383,6 +385,20 @@ class DWWaterDetect:
 
         return dw_image
 
+    def calc_glint(self, image, output_folder, pdf_merger_image):
+        """
+        Calculate the sun glint rejection using the angle Tetag between vectors pointing in the surface-to-satellite
+        and specular reflection directions
+        Also, checks if there are reports, then add the risk of glint to it.
+        """
+        xml = self.loader.current_image_folder.as_posix() + '/' + image.current_image_name + '_MTD_ALL.xml'
+        # check the path of the metadata file
+        DWutils.check_path(xml)
+        # extract angles from the metadata and make the glint calculation from it
+        Glint = DWutils.extract_angles_from_xml(xml)
+        # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
+        DWutils.create_glint_pdf(xml, output_folder, Glint, pdf_merger_image)
+
     def calc_inversion_parameter(self, dw_image, pdf_merger_image):
         """
         Calculate the parameter in config.parameter and saves it to the dictionary of bands.
@@ -447,10 +463,10 @@ class DWWaterDetect:
 
     def calc_inversion_multiparameter(self, dw_image, pdf_merger_image, list_param):
         """
-        Calculate the parameters in config.parameter and save it to the dictionary of bands.
+        Calculate the parameters in config.parameter
         This will make it easier to make graphs correlating any band with the parameter.
         Also, checks if there are reports, then add the parameter to it.
-        :return: The parameter matrix
+        :return: save a multiparameter tif with each parameter per band
         """
 
         # initialize the parameter with None
@@ -586,7 +602,7 @@ class DWWaterDetect:
                                                uniform_distribution=False,
                                                no_data_value=no_data_value,
                                                valid_value=valid_value)
-        print('-------------------------------TEST PDF---------------------------')
+
         # save the RGB auxiliary tif and gets the full path filename
         filename = self.saver.save_rgb_array(red=red * 10000,
                                              green=green * 10000,

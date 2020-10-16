@@ -11,6 +11,7 @@ from sklearn.preprocessing import QuantileTransformer
 
 #Modif Marion
 from lxml import etree
+from PIL import Image, ImageDraw, ImageFont
 
 from osgeo import gdal
 import numpy as np
@@ -915,21 +916,76 @@ class DWutils:
             # Convert result to degrees
             g.append(np.degrees(np.arccos(Tetag)))
 
-        print("---------------------------")
-        print("VALEURS ANGLES POUR GLINT")
-        print(g)
+        return g
 
+    @staticmethod
+    def create_glint_pdf(xml, output_folder, g, pdf_merger):
+        """
+        Function to create an image to add in the pdf report that indicates if there is glint on an image
 
+        Parameters
+        ----------
+        xml : TYPE xml file
+            DESCRIPTION Filepath of the metadata file from L2A Sentinel 2 data: example "SENTINEL2A_20200328-104846-345_L2A_T31TFJ_C_V2-2_MTD_ALL.xml"
+        output_folder: filepath of the output folder
+        g: TYPE list
+            DESCRIPTION list with glint values for each band of the Sentinel 2 product
+        pdf_merger: function to add an element to a pdf
+
+        """
+
+        # name of the output image with text
+        namesp = xml.split('/')[4]
+        namelist = namesp.split('-')[2].split('_')
+        for name in namelist:
+            # to extract tilename
+            if name.find('T') == 0:
+                indice = namelist.index(name)
+        # nameimg = Type of image, date and tilename
+        nameimg = namesp.split('-')[0] + '_' + namelist[indice]
+
+        # create an image
+        out = Image.new("RGB", (300, 50), (255, 255, 255))
+        # get a drawing context
+        d = ImageDraw.Draw(out)
+        # font size
+        font = ImageFont.truetype("arial.ttf", 16)
 
         # Test about glint values
+        print("---------------------------")
+        print("VALUES ANGLE GLINT")
+        print(g)
         if min(g) < 19:
             print('GLINT SUR IMAGE ' + xml)
-        elif min(g) >=19 and min(g)<29:
+            # draw multiline text
+            d.multiline_text((5, 5), "GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None, spacing=0,
+                             align="center")
+        elif min(g) >= 19 and min(g) < 29:
+            # values that may change
             print('MIGHT BE GLINT SUR IMAGE ' + xml)
+            # draw multiline text
+            d.multiline_text((5, 5), "Might be glint image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+                             spacing=0, align="center")
         else:
-            print("PAS DE GLINT SUR IMAGE "+ xml)
+            print("PAS DE GLINT SUR IMAGE " + xml)
+            # draw multiline text
+            d.multiline_text((5, 5), "No glint image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+                             spacing=0, align="center")
         print("---------------------------")
-        return g
+
+        # Printing details to obtain it in the log file when run on the cluster
+
+        # name of the pdf image
+        nameimg = "Glint_" + nameimg
+        # output filename
+        filename = str(output_folder) + "\\" + nameimg
+        # Save as pdf
+        out.save(filename + '.pdf')
+        out.close()
+
+        if pdf_merger:
+            # Add to the main pdf
+            pdf_merger.append(filename + '.pdf')
 
     @staticmethod
     def remove_negatives(b1, b2, mask=None):
