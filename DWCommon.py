@@ -921,7 +921,7 @@ class DWutils:
         return g
 
     @staticmethod
-    def create_glint_pdf(xml, output_folder, g, pdf_merger):
+    def create_glint_pdf(xml, current_imagename, output_folder, g, pdf_merger):
         """
         Function to create an image to add in the pdf report that indicates if there is glint on an image
 
@@ -929,22 +929,21 @@ class DWutils:
         ----------
         xml : TYPE xml file
             DESCRIPTION Filepath of the metadata file from L2A Sentinel 2 data: example "SENTINEL2A_20200328-104846-345_L2A_T31TFJ_C_V2-2_MTD_ALL.xml"
+        current_imagename : getting current image name
         output_folder: filepath of the output folder
         g: TYPE list
             DESCRIPTION list with glint values for each band of the Sentinel 2 product
         pdf_merger: function to add an element to a pdf
 
         """
-
-        # name of the output image with text
-        namesp = xml.split('/')[4]
-        namelist = namesp.split('-')[2].split('_')
+        # getting current image name
+        namelist = current_imagename.split('-')[2].split('_')
         for name in namelist:
             # to extract tilename
             if name.find('T') == 0:
                 indice = namelist.index(name)
         # nameimg = Type of image, date and tilename
-        nameimg = namesp.split('-')[0] + '_' + namelist[indice]
+        nameimg = current_imagename.split('-')[0] + '_' + namelist[indice]
 
         # create an image
         out = Image.new("RGB", (300, 50), (255, 255, 255))

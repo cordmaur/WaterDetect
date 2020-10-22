@@ -397,7 +397,7 @@ class DWWaterDetect:
         # extract angles from the metadata and make the glint calculation from it
         Glint = DWutils.extract_angles_from_xml(xml)
         # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
-        DWutils.create_glint_pdf(xml, output_folder, Glint, pdf_merger_image)
+        DWutils.create_glint_pdf(xml, image.current_image_name, output_folder, Glint, pdf_merger_image)
 
     def calc_inversion_parameter(self, dw_image, pdf_merger_image):
         """
@@ -525,7 +525,6 @@ class DWWaterDetect:
                                                               self.loader.raster_bands['RedEdg2'])
 
             if parameter is not None:
-                # print(parameter.shape)
                 # clear the parameters array and apply the Water mask, with no_data_values
 
                 param = DWutils.apply_mask(parameter,
