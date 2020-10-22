@@ -416,15 +416,7 @@ class DWWaterDetect:
             parameter = self.inversion_algos.turb_Dogliotti(self.loader.raster_bands['Red'],
                                                             self.loader.raster_bands['Nir'])
         elif self.config.parameter == 'spm-get':
-            print(self.config.parameter)
-            #parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'],
-                                                    # self.loader.raster_bands['Nir'],
-                                                     #self.loader.product)
-
-            Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
-                                                self.loader.raster_bands['Nir'], mask)
-
-            parameter = self.inversion_algos.SPM_GET(Red, Nir,
+            parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'], self.loader.raster_bands['Nir'],
                                                      self.loader.product)
 
         elif self.config.parameter == 'chl_lins':
