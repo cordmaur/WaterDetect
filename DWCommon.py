@@ -871,7 +871,9 @@ class DWutils:
         xml : TYPE xml file
             DESCRIPTION Filepath of the metadata file from L2A Sentinel 2 data: example "SENTINEL2A_20200328-104846-345_L2A_T31TFJ_C_V2-2_MTD_ALL.xml"
 
-        Returns
+        :return g: list of glint values
+
+        Info
         -------
         SZA : TYPE float
             DESCRIPTION. Sun zenith angle

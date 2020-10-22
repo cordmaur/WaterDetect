@@ -256,7 +256,7 @@ class DWWaterDetect:
                         self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
                         # calc the inversion parameter and save it to self.rasterbands in the dictionary
-                        # check if working with average results
+                        # TODO : check if working with average results
                         if self.config.inversion:
                             if nb_param > 1:
                                 self.calc_inversion_multiparameter(dw_image, pdf_merger_image, list_param)
@@ -408,7 +408,7 @@ class DWWaterDetect:
         """
 
         # POR ENQUANTO BASTA PASSARMOS O DICIONÁRIO DE BANDAS E O PRODUTO PARA TODOS
-
+        mask = self.loader.invalid_mask
         # initialize the parameter with None
         parameter = None
 
@@ -416,8 +416,15 @@ class DWWaterDetect:
             parameter = self.inversion_algos.turb_Dogliotti(self.loader.raster_bands['Red'],
                                                             self.loader.raster_bands['Nir'])
         elif self.config.parameter == 'spm-get':
-            parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'],
-                                                     self.loader.raster_bands['Nir'],
+            print(self.config.parameter)
+            #parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'],
+                                                    # self.loader.raster_bands['Nir'],
+                                                     #self.loader.product)
+
+            Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
+                                                self.loader.raster_bands['Nir'], mask)
+
+            parameter = self.inversion_algos.SPM_GET(Red, Nir,
                                                      self.loader.product)
 
         elif self.config.parameter == 'chl_lins':
@@ -436,7 +443,10 @@ class DWWaterDetect:
 
         if parameter is not None:
             # clear the parameters array and apply the Water mask, with no_data_values
-            parameter = DWutils.apply_mask(parameter, ~dw_image.water_mask, -9999)
+            parameter = DWutils.apply_mask(parameter,
+                                       ~(np.where(dw_image.water_mask == 255, 0, dw_image.water_mask).astype(
+                                           bool)),
+                                       -9999)
 
             # save the calculated parameter
             self.saver.save_array(parameter, self.config.parameter, no_data_value=-9999)
@@ -562,9 +572,9 @@ class DWWaterDetect:
     def calc_param_limits(self, parameter, no_data_value=-9999):
 
         valid = parameter[parameter != no_data_value]
-        # min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
+        #min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
         min_value = np.quantile(valid, 0.25) if self.config.min_param_value is None else self.config.min_param_value
-        # max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
+        #max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
         max_value = np.quantile(valid, 0.75) if self.config.max_param_value is None else self.config.max_param_value
         return max_value * 1.1, min_value * 0.8
 
