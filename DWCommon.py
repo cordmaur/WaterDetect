@@ -42,7 +42,8 @@ class DWConfig:
                  'score_index': 'calinsk',
                  'detectwatercluster': 'maxmndwi',
                  'clustering_bands': "[['ndwi', 'Nir']]",
-                 'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]"
+                 'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]",
+                 'plot_ts': 'False'
                  }
 
     _units = {'turb-dogliotti': 'FNU',
@@ -233,6 +234,10 @@ class DWConfig:
             bands_lst = [bands_lst]
 
         return bands_lst
+
+    @property
+    def plot_ts(self):
+        return self.get_option('TimeSeries', 'plot_ts', evaluate=True)
 
     @property
     def clustering_bands(self):
@@ -792,6 +797,7 @@ class DWutils:
 
         #norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
         norm = matplotlib.colors.LogNorm(vmin=min_value, vmax=max_value)
+        #norm = matplotlib.colors.SymLogNorm(linthresh=0.03, linscale=0.03,vmin=min_value, vmax=max_value)
 
         #
         # cdict = {'red': ((0.0, 0.0, 0.0),
@@ -956,21 +962,21 @@ class DWutils:
         print("---------------------------")
         print("VALUES ANGLE GLINT")
         print(g)
-        if min(g) < 19:
+        if min(g) < 20:
             print('GLINT SUR IMAGE ' + xml)
             # draw multiline text
             d.multiline_text((5, 5), "GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None, spacing=0,
                              align="center")
-        elif min(g) >= 19 and min(g) < 29:
+        elif min(g) >= 20 and min(g) < 29:
             # values that may change
             print('MIGHT BE GLINT SUR IMAGE ' + xml)
             # draw multiline text
-            d.multiline_text((5, 5), "Might be glint image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+            d.multiline_text((5, 5), "MIGHT BE GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
                              spacing=0, align="center")
         else:
             print("PAS DE GLINT SUR IMAGE " + xml)
             # draw multiline text
-            d.multiline_text((5, 5), "No glint image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+            d.multiline_text((5, 5), "NO GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
                              spacing=0, align="center")
         print("---------------------------")
 
@@ -987,6 +993,9 @@ class DWutils:
         if pdf_merger:
             # Add to the main pdf
             pdf_merger.append(filename + '.pdf')
+
+        #os remove pdf
+        #os.remove(filename + '.pdf')
 
     @staticmethod
     def remove_negatives(b1, b2, mask=None):

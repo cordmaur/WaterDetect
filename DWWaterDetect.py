@@ -1,11 +1,12 @@
 from DWInputOutput import DWSaver, DWLoader
 from DWCommon import DWConfig, DWutils
 import DWImage
+import DWSerie
 import numpy as np
 from PyPDF2 import PdfFileMerger
 import os
 import DWInversion
-from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, RobustScaler
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
 from osgeo import gdal
 
 class DWWaterDetect:
@@ -19,11 +20,13 @@ class DWWaterDetect:
     # ref_band = 'Red'
     # config = None  # Configurations loaded from WaterDetect.ini
 
-    def __init__(self, input_folder, output_folder, shape_file, product, config_file):
+    def __init__(self, input_folder, output_folder, shape_file, product, parameters, config_file):
 
         # Create the Configuration object.
         # It loads the configuration file (WaterDetect.ini) and holds all the defaults if missing parameters
         self.config = DWConfig(config_file=config_file)
+
+        self.parameters = parameters
 
         # Create a Loader for the product
         self.loader = DWLoader(input_folder, shape_file, product, ref_band=self.config.reference_band)
@@ -332,6 +335,10 @@ class DWWaterDetect:
                 report_name = 'FullReport_' + self.config.parameter
 
             self.save_report(report_name, pdf_merger, self.saver.base_output_folder.joinpath(self.saver.area_name))
+
+        if self.config.plot_ts:
+            time_series = DWSerie.DWSerie(self.saver.output_folder, self.parameters, self.loader.shape_file)
+            time_series.run()
 
         return
 
