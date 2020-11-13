@@ -6,21 +6,18 @@
 
 ## Synopsis
 
-WaterDetect is an end-to-end algorithm to generate open water cover mask, specially conceived for L2A Sentinel 2 imagery from [MAJA](https://logiciels.cnes.fr/en/content/maja) processor. It can also be used for Landsat 8 images and for other clustering tasks, as it returns as results, besides the water masks, the clustering. <br>
+WaterDetect is an end-to-end algorithm to generate open water cover mask, specially conceived for L2A Sentinel 2 imagery from [MAJA](https://logiciels.cnes.fr/en/content/maja) processor. It can also be used for Landsat 8 images and for other multispectral clustering/segmentation tasks.<br>
 
 The water masks produced by WaterDetect are being used in water qualty products (Obs2Co) and multi-temporal water maps (Surfwater). Both chains are supported by the "SWOT-Downstream" program by CNES. Products are provided by the THEIA / Hydroweb-NG platform. 
 
 The WaterDetect algorithm uses a multidimensional agglomerative clustering technique on a subsample of the scene's pixels, to group them in classes, and a naive bayes classifier to generalize the results for the whole scene, as summarized in the following picture:
 
-All the details and tests has been described in the article <b>Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors<b>, under revision by the journal Remote Sensing of Environment.
+![Screenshot](GraphicalAbstract.JPG)
+
+All the details and tests has been described in the article <b>Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors</b>, under revision by the journal Remote Sensing of Environment.
 
 How to cide:
 Cordeiro, M.C.R, Martinez, J.-M., Pena Luque, S., 2020. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment XX, XX. 
-
-## Contributors
-> Author: Maurício Cordeiro (ANA/GET)<br>
-> Supervisor: Jean-Michel Martinez (IRD/GET)<br>
-> Validation dataset: Santiago Pena Luque (CNES) 
 
 
 
@@ -65,6 +62,11 @@ The input directory should contain the uncompressed folders for the images. The 
 If the config file is not specified, the script will search for WaterDetect.ini in the current folder.
 
 ## Config File
+
+## Contributors
+> Author: Maurício Cordeiro (ANA/GET)<br>
+> Supervisor: Jean-Michel Martinez (IRD/GET)<br>
+> Validation dataset: Santiago Pena Luque (CNES) 
 
 ## License
 This code is licensed under the [GNU General Public License v3.0](https://github.com/cordmaur/WaterDetect/blob/master/LICENSE) license. Please, refer to GNU's webpage  (https://www.gnu.org/licenses/gpl-3.0.en.html) for details.
