@@ -1,8 +1,6 @@
 # WaterDetect
 
-> Author: Maurício Cordeiro<br>
-> Supervisor: Jean-Michel Martinez
-> Article: Under minor revision by RSE - Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors
+[![DOI](https://zenodo.org/badge/224832878.svg)](https://zenodo.org/badge/latestdoi/224832878)
 
 ## Synopsis
 
