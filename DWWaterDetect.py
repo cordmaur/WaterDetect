@@ -426,7 +426,7 @@ class DWWaterDetect:
             parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'], self.loader.raster_bands['Nir'],
                                                      self.loader.product)
 
-        elif self.config.parameter == 'chl_lins':
+        elif self.config.parameter == 'chl-lins':
             parameter = self.inversion_algos.chl_lins(self.loader.raster_bands['Red'],
                                                       self.loader.raster_bands['RedEdg1'])
 
@@ -570,10 +570,10 @@ class DWWaterDetect:
     def calc_param_limits(self, parameter, no_data_value=-9999):
 
         valid = parameter[parameter != no_data_value]
-        #min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
-        min_value = np.quantile(valid, 0.25) if self.config.min_param_value is None else self.config.min_param_value
-        #max_value = np.percentile(valid, 96) if self.config.max_param_value is None else self.config.max_param_value
-        max_value = np.quantile(valid, 0.75) if self.config.max_param_value is None else self.config.max_param_value
+        min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
+        #min_value = np.quantile(valid, 0.25) if self.config.min_param_value is None else self.config.min_param_value
+        max_value = np.percentile(valid, 75) if self.config.max_param_value is None else self.config.max_param_value
+        #max_value = np.quantile(valid, 0.75) if self.config.max_param_value is None else self.config.max_param_value
         return max_value * 1.1, min_value * 0.8
 
     def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):

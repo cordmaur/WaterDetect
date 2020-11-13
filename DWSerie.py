@@ -285,3 +285,5 @@ class DWSerie:
         namecsv = self.fill_csv(image, datelist, self.input_folder)
         # Plotting the results
         self.save_graph_csv(self.input_folder,namecsv)
+
+        #df_mod_srtd['Datetime'] = pd.to_datetime(df_mod_srtd['Date'], errors='coerce')
