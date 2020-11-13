@@ -65,6 +65,12 @@ If the config file is not specified, the script will search for WaterDetect.ini 
 > Supervisor: Jean-Michel Martinez (IRD/GET)<br>
 > Validation dataset: Santiago Pena Luque (CNES) 
 
+### Institutions
+* ANA - Agência Nacional de Águas (https://www.gov.br/ana/en/)
+* GET - Géosciences Environnement Toulouse (https://www.get.omp.eu/)
+* IRD - Institut de Recherche pour le Développement (https://en.ird.fr/)
+* CNES - Centre National d'Études Spatiales (https://cnes.fr/fr)
+
 ## License
 This code is licensed under the [GNU General Public License v3.0](https://github.com/cordmaur/WaterDetect/blob/master/LICENSE) license. Please, refer to GNU's webpage  (https://www.gnu.org/licenses/gpl-3.0.en.html) for details.
 
