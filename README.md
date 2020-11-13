@@ -16,9 +16,8 @@ The WaterDetect algorithm uses a multidimensional agglomerative clustering techn
 
 All the details and tests has been described in the article <b>Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors</b>, under revision by the journal Remote Sensing of Environment.
 
-How to cide:
+<b>How to cite:</b><br>
 Cordeiro, M.C.R, Martinez, J.-M., Pena Luque, S., 2020. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment XX, XX. 
-
 
 
 ## Dependencies
