@@ -4,9 +4,9 @@
 
 ## Synopsis
 
-WaterDetect is an end-to-end algorithm to generate open water cover mask, specially conceived for L2A Sentinel 2 imagery from [MAJA](https://logiciels.cnes.fr/en/content/maja) processor. It can also be used for Landsat 8 images and for other multispectral clustering/segmentation tasks.<br>
+WaterDetect is an end-to-end algorithm to generate open water cover mask, specially conceived for L2A Sentinel 2 imagery from [MAJA](https://logiciels.cnes.fr/en/content/maja)<sup>1</sup>  processor, without any a priori knowledge on the scene. It can also be used for Landsat 8 images and for other multispectral clustering/segmentation tasks.<br>
 
-The water masks produced by WaterDetect are being used in water qualty products (Obs2Co) and multi-temporal water maps (Surfwater). Both chains are supported by the "SWOT-Downstream" program by CNES. Products are provided by the THEIA / Hydroweb-NG platform. 
+The water masks produced by WaterDetect were primarily designed for water quality product computation (Obs2Co processing chain) and are also used for multi-temporal water maps (Surfwater processing chain). Both chains are supported by the "SWOT-Downstream" and TOSCA programs by CNES. Products are provided by the THEIA / Hydroweb-NG platform. 
 
 The WaterDetect algorithm uses a multidimensional agglomerative clustering technique on a subsample of the scene's pixels, to group them in classes, and a naive bayes classifier to generalize the results for the whole scene, as summarized in the following picture:
 
@@ -14,7 +14,7 @@ The WaterDetect algorithm uses a multidimensional agglomerative clustering techn
 
 All the details and tests has been described in the article <b>Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors</b>, under revision by the journal Remote Sensing of Environment.
 
-<b>How to cite:</b><br>
+<b>How to cite ("accepted by Remote Sensing of Environment, pending publication"):</b><br>
 Cordeiro, M.C.R, Martinez, J.-M., Pena Luque, S., 2020. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment XX, XX. 
 
 
@@ -74,3 +74,5 @@ If the config file is not specified, the script will search for WaterDetect.ini 
 ## License
 This code is licensed under the [GNU General Public License v3.0](https://github.com/cordmaur/WaterDetect/blob/master/LICENSE) license. Please, refer to GNU's webpage  (https://www.gnu.org/licenses/gpl-3.0.en.html) for details.
 
+## Reference
+(1) Hagolle, O.; Huc, M.; Pascual, D. V.; Dedieu, G. A Multi-Temporal Method for Cloud Detection, Applied to FORMOSAT-2, VENµS, LANDSAT and SENTINEL-2 Images. Remote Sensing of Environment 2010, 114 (8), 1747–1755. https://doi.org/10.1016/j.rse.2010.03.002.
