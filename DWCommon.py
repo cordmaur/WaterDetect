@@ -9,6 +9,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import QuantileTransformer
 
+#Modif Marion
+from lxml import etree
+from PIL import Image, ImageDraw, ImageFont
+
 from osgeo import gdal
 import numpy as np
 from pathlib import Path
@@ -38,13 +42,14 @@ class DWConfig:
                  'score_index': 'calinsk',
                  'detectwatercluster': 'maxmndwi',
                  'clustering_bands': "[['ndwi', 'Nir']]",
-                 'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]"
+                 'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]",
+                 'plot_ts': 'False'
                  }
 
     _units = {'turb-dogliotti': 'FNU',
               'spm-get': 'mg/l',
-              'chl_lins': 'mg/m^3',
-              'chl_giteslon': 'mg/m^3',
+              'chl-lins': 'mg/m^3',
+              'chl-giteslon': 'mg/m^3',
               'aCDOM-brezonik': 'Absorption Coef'}
 
     def __init__(self, config_file=None):
@@ -229,6 +234,10 @@ class DWConfig:
             bands_lst = [bands_lst]
 
         return bands_lst
+
+    @property
+    def plot_ts(self):
+        return self.get_option('TimeSeries', 'plot_ts', evaluate=True)
 
     @property
     def clustering_bands(self):
@@ -615,6 +624,43 @@ class DWutils:
         print('Saving image: ' + filename)
         return
 
+    # -----------------------------------------------
+    @staticmethod
+    def array2multiband(filename, array, geo_transform, projection, nodatavalue=0, dtype=gdal.GDT_Float32):
+        print('-----------------------------------------------')
+        print('JE FAIS LE RASTER MULTILAYERS')
+
+        cols = array[0].shape[1]
+        rows = array[0].shape[0]
+        print(cols, rows)
+        nb_bands = len(array)
+
+        driver = gdal.GetDriverByName('GTiff')
+        out_raster = driver.Create(filename, cols, rows, nb_bands, dtype, options=['COMPRESS=LZW'])
+        out_raster.SetGeoTransform(geo_transform)
+        out_raster.SetProjection(projection)
+
+        # [out_raster.GetRasterBand(i) for i in range(0,nb_bands)]
+
+        for i in range(0, nb_bands):
+            outband = out_raster.GetRasterBand(i + 1)
+            outband.SetNoDataValue(nodatavalue)
+            outband.WriteArray(array[i])
+
+        # outband = out_raster.GetRasterBand(2)
+        # outband.SetNoDataValue(nodatavalue)
+        # outband.WriteArray(green)
+        #
+        # outband = out_raster.GetRasterBand(3)
+        # outband.SetNoDataValue(nodatavalue)
+        # outband.WriteArray(blue)
+
+        outband.FlushCache()
+        print('Saving image: ' + filename)
+        print('-----------------------------------------------')
+        return
+
+# ------------------------------------------------
     @staticmethod
     def get_train_test_data(data, train_size, min_train_size, max_train_size):
         """
@@ -749,7 +795,10 @@ class DWutils:
         # Set the colormap and norm to correspond to the data for which
         # the colorbar will be used.
 
-        norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+        #norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+        norm = matplotlib.colors.LogNorm(vmin=min_value, vmax=max_value)
+        #norm = matplotlib.colors.SymLogNorm(linthresh=0.03, linscale=0.03,vmin=min_value, vmax=max_value)
+
         #
         # cdict = {'red': ((0.0, 0.0, 0.0),
         #                  (0.5, 0.0, 0.0),
@@ -817,3 +866,166 @@ class DWutils:
 
         return gdal_mask
 
+#------------------
+    @staticmethod
+    def extract_angles_from_xml(xml):
+        """
+        Function to extract Zenith and Azimuth angles values from an xml Sentinel 2 file
+
+        Parameters
+        ----------
+        xml : TYPE xml file
+            DESCRIPTION Filepath of the metadata file from L2A Sentinel 2 data: example "SENTINEL2A_20200328-104846-345_L2A_T31TFJ_C_V2-2_MTD_ALL.xml"
+
+        :return g: list of glint values
+
+        Info
+        -------
+        SZA : TYPE float
+            DESCRIPTION. Sun zenith angle
+        SazA : TYPE float
+            DESCRIPTION. Sun azimuth angle
+        zenith_angle : TYPE list of strings
+            DESCRIPTION. Mean_Viewing_Incidence_Angle_List for all the bands
+        azimuth_angle : TYPE list of strings
+            DESCRIPTION. Mean_Viewing_Incidence_Angle_List for all the bands
+
+        """
+
+        # Parsing xml file
+        parser = etree.XMLParser()
+        tree = etree.parse(xml, parser)
+
+        root = tree.getroot()  # to iterate over the tree
+
+        zenith_angle = root.xpath('//ZENITH_ANGLE[@unit="deg"]/text()')
+        # zenith_angle[0] = sun_angle Mean_Viewing_Incidence_Angle_List for B2, B3....
+
+        azimuth_angle = root.xpath('//AZIMUTH_ANGLE[@unit="deg"]/text()')
+        # azimuth_angle[0] = sun_angle and then Mean_Viewing_Incidence_Angle_List for B2, B3....
+
+        SZA = np.deg2rad(float(zenith_angle[0])) #radian
+        SazA = float(azimuth_angle[0])
+
+        # Remove first element for both lists
+        zenith_angle.pop(0)
+        azimuth_angle.pop(0)
+
+        #return SZA, SazA, zenith_angle, azimuth_angle
+
+        g = []
+
+        for i in range(len(zenith_angle)):
+            # Degrees to radian conversion
+            viewA = np.deg2rad(float(zenith_angle[i]))
+            phi = np.deg2rad((SazA - float(azimuth_angle[i])))
+
+            Tetag = np.cos(viewA) * np.cos(SZA) - np.sin(viewA) * np.sin(SZA) * np.cos(phi)
+            # Convert result to degrees
+            g.append(np.degrees(np.arccos(Tetag)))
+
+        return g
+
+    @staticmethod
+    def create_glint_pdf(xml, current_imagename, output_folder, g, pdf_merger):
+        """
+        Function to create an image to add in the pdf report that indicates if there is glint on an image
+
+        Parameters
+        ----------
+        xml : TYPE xml file
+            DESCRIPTION Filepath of the metadata file from L2A Sentinel 2 data: example "SENTINEL2A_20200328-104846-345_L2A_T31TFJ_C_V2-2_MTD_ALL.xml"
+        current_imagename : getting current image name
+        output_folder: filepath of the output folder
+        g: TYPE list
+            DESCRIPTION list with glint values for each band of the Sentinel 2 product
+        pdf_merger: function to add an element to a pdf
+
+        """
+        # getting current image name
+        namelist = current_imagename.split('-')[2].split('_')
+        for name in namelist:
+            # to extract tilename
+            if name.find('T') == 0:
+                indice = namelist.index(name)
+        # nameimg = Type of image, date and tilename
+        nameimg = current_imagename.split('-')[0] + '_' + namelist[indice]
+
+        # create an image
+        out = Image.new("RGB", (300, 50), (255, 255, 255))
+        # get a drawing context
+        d = ImageDraw.Draw(out)
+        # font size
+        font = ImageFont.truetype("arial.ttf", 16)
+
+        # Test about glint values
+        print("---------------------------")
+        print("VALUES ANGLE GLINT")
+        print(g)
+        if min(g) < 20:
+            print('GLINT SUR IMAGE ' + xml)
+            # draw multiline text
+            d.multiline_text((5, 5), "GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None, spacing=0,
+                             align="center")
+        elif min(g) >= 20 and min(g) < 29:
+            # values that may change
+            print('MIGHT BE GLINT SUR IMAGE ' + xml)
+            # draw multiline text
+            d.multiline_text((5, 5), "MIGHT BE GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+                             spacing=0, align="center")
+        else:
+            print("PAS DE GLINT SUR IMAGE " + xml)
+            # draw multiline text
+            d.multiline_text((5, 5), "NO GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+                             spacing=0, align="center")
+        print("---------------------------")
+
+        # Printing details to obtain it in the log file when run on the cluster
+
+        # name of the pdf image
+        nameimg = "Glint_" + nameimg
+        # output filename
+        filename = str(output_folder) + "\\" + nameimg
+        # Save as pdf
+        out.save(filename + '.pdf')
+        out.close()
+
+        if pdf_merger:
+            # Add to the main pdf
+            pdf_merger.append(filename + '.pdf')
+
+        #os remove pdf
+        #os.remove(filename + '.pdf')
+
+    @staticmethod
+    def remove_negatives(b1, b2, mask=None):
+        """
+        Remove negatives values of given arrays b1 and b2, except masked values.
+
+        :param b1: first array
+        :param b2: second array
+        :param mask: initial mask
+        :return: nd arrays without negatives values
+        """
+
+        if mask is not None:
+            min_cte = np.min([np.min(b1[~mask]), np.min(b2[~mask])])
+        else:
+            min_cte = np.min([np.min(b1), np.min(b2)])
+
+        if min_cte <= 0:
+            # test avec 0.001 puis 0.0001
+            # min_cte = - min_cte + 0.0001
+            # b1 = b1 + min_cte
+            # b2 = b2 + min_cte
+            min_cte = 0.001
+        else:
+            min_cte = 0
+
+        b1 = np.where(b1 >= 0, b1, min_cte)
+        b2 = np.where(b2 >= 0, b2, min_cte)
+
+        b1 = np.ma.array(b1, mask=mask, fill_value=-9999).filled()
+        b2 = np.ma.array(b2, mask=mask, fill_value=-9999).filled()
+
+        return b1, b2

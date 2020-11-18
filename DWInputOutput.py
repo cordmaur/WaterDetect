@@ -443,6 +443,31 @@ class DWSaver:
 
         return filename
 
+    # -------------------------------------------------------------------------
+    def save_multiband(self, array, name, opt_relative_path=None, no_data_value=0, dtype=gdal.GDT_Float32):
+        """
+        Save a multilayer array
+
+        :param array: array with all bands wanted
+        :param name: name of the output
+
+        :return: the complete filename
+        """
+        if opt_relative_path:
+            filename = self.output_folder.joinpath(opt_relative_path)
+            filename.mkdir(exist_ok=True)
+        else:
+            filename = self.output_folder
+
+        filename = filename.joinpath(name + '.tif').as_posix()
+
+        DWutils.array2multiband(filename, array, self.geo_transform, self.projection, no_data_value, dtype)
+
+        return filename
+
+# -------------------------------------------------------------------------
+
+
     @property
     def area_name(self):
         if self._area_name:
