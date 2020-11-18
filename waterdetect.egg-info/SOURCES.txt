@@ -1,0 +1,7 @@
+README.md
+setup.cfg
+setup.py
+waterdetect.egg-info/PKG-INFO
+waterdetect.egg-info/SOURCES.txt
+waterdetect.egg-info/dependency_links.txt
+waterdetect.egg-info/top_level.txt
