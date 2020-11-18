@@ -100,7 +100,6 @@ class DWWaterDetect:
 
         return index
 
-
     def calc_mbwi(self, bands, factor=3, save_index=False):
         """
         Calculates the Multiband Water Index and adds it to the bands dictionary
@@ -388,7 +387,10 @@ class DWWaterDetect:
 
         if parameter is not None:
             # clear the parameters array and apply the Water mask, with no_data_values
-            parameter = DWutils.apply_mask(parameter, ~dw_image.water_mask, -9999)
+            # parameter = DWutils.apply_mask(parameter, ~dw_image.water_mask, -9999)
+            parameter = DWutils.apply_mask(parameter,
+                                           ~(np.where(dw_image.water_mask==255, 0, dw_image.water_mask).astype(bool)),
+                                           -9999)
 
             # save the calculated parameter
             self.saver.save_array(parameter, self.config.parameter, no_data_value=-9999)
