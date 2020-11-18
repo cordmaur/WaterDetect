@@ -230,6 +230,12 @@ class DWImageClustering:
                 raise OSError('Mir2 band necessary for detecting water with minmir2 option')
             water_cluster = self.detect_cluster('value', 'min', 'Mir2')
 
+        elif self.config.detect_water_cluster == 'maxndwi':
+            if 'ndwi' not in self.bands.keys():
+                raise OSError('NDWI band necessary for detecting water with minmir2 option')
+            water_cluster = self.detect_cluster('value', 'max', 'ndwi')
+
+
         else:
             raise OSError('Method {} for detecting water cluster does not exist'.
                           format(self.config.detect_water_cluster))

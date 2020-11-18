@@ -5,37 +5,23 @@ import DWSerie
 import numpy as np
 from PyPDF2 import PdfFileMerger
 import os
-import DWInversion
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, RobustScaler
 from osgeo import gdal
 
+
 class DWWaterDetect:
 
-    # initialize the variables
-    # max_invalid_pixels = 0.8  # The maximum percentage of invalid (masked) pixels to continue
-    # min_mndwi = 0.0  # mndwi threshold
-    # clustering = 'aglomerative'  # aglomerative, kmeans, gauss_mixture
-    # classifier = 'naive_bayes'  # naive_bays, MLP, Hull, SVM
-    # clip_mndwi = None  # None or mndwi value to clip false positives
-    # ref_band = 'Red'
-    # config = None  # Configurations loaded from WaterDetect.ini
-
-    def __init__(self, input_folder, output_folder, shape_file, product, parameters, config_file):
+    def __init__(self, input_folder, output_folder, shape_file, product, config_file):
 
         # Create the Configuration object.
         # It loads the configuration file (WaterDetect.ini) and holds all the defaults if missing parameters
         self.config = DWConfig(config_file=config_file)
-
-        self.parameters = parameters
 
         # Create a Loader for the product
         self.loader = DWLoader(input_folder, shape_file, product, ref_band=self.config.reference_band)
 
         # Create a saver object
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
-
-        # if there is an inversion, create an instance of Algorithms class, None otherwise
-        self.inversion_algos = DWInversion.DWInversionAlgos() if self.config.inversion else None
 
         return
 
@@ -47,8 +33,7 @@ class DWWaterDetect:
         """
 
         # initialize with basic bands for MNDWI and NDWI and MBWI
-        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir2', 'Mir', 'RedEdg1', 'RedEdg2',
-                           self.config.reference_band}
+        necessary_bands = {'Green', 'Red', 'Blue', 'Nir', 'Mir2', 'Mir', self.config.reference_band}
 
         if include_rgb:
             necessary_bands = necessary_bands.union({'Red', 'Green', 'Blue'})
@@ -63,7 +48,7 @@ class DWWaterDetect:
     def calc_nd_index(self, index_name, band1, band2, save_index=False):
         """
         Calculates a normalized difference index, adds it to the bands dict and update the mask in loader
-        :param save_index: Inidicate if we should save this index to a raster image
+        :param save_index: Indicate if we should save this index to a raster image
         :param index_name: name of index to be used as key in the dictionary
         :param band1: first band to be used in the normalized difference
         :param band2: second band to be used in the normalized difference
@@ -82,11 +67,14 @@ class DWWaterDetect:
 
     def calc_m_nd_index(self, index_name, band1, band2, band3, band4, save_index=False):
         """
-        Calculates a modified normalized difference index, adds it to the bands dict and update the mask in loader
+        Calculates a modified normalized difference index, adds it to the bands dict and update the mask in loader.
+        Proposed by Dhalton. It uses the maximum of visible and the minimum of Nir/Swir
         :param save_index: Inidicate if we should save this index to a raster image
         :param index_name: name of index to be used as key in the dictionary
         :param band1: first band to be used in the normalized difference
-        :param band2: second band to be used in the normalized difference
+        :param band2: second option for the first band to be used in the normalized difference
+        :param band3: second band to be used in the normalized difference
+        :param band4: second option for the second band to be used in the normalized difference
         :return: index array
         """
 
@@ -103,10 +91,9 @@ class DWWaterDetect:
 
         return index
 
-
     def calc_mbwi(self, bands, factor=3, save_index=False):
         """
-        Calculates the Multiband Water Index and adds it to the bands dictionary
+        Calculates the Multi band Water Index and adds it to the bands dictionary
         :param save_index: Inform if the index should be saved as array in the output folder
         :param bands: Bands dictionary with the raster bands
         :param factor: Factor to multiply the Green band as proposed in the original paper
@@ -125,12 +112,11 @@ class DWWaterDetect:
             min_cte = 0
 
         mbwi = factor * (bands['Green']+min_cte) - (bands['Red']+min_cte) - (bands['Nir']+min_cte)\
-               - (bands['Mir']+min_cte) - (bands['Mir2']+min_cte)
+            - (bands['Mir']+min_cte) - (bands['Mir2']+min_cte)
 
-        mbwi[~mask] = RobustScaler(copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
-        # mbwi[~mask] = QuantileTransformer(copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
-        mbwi[~mask] = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi[~mask].reshape(-1,1)).reshape(-1)
-
+        mbwi[~mask] = RobustScaler(copy=False).fit_transform(mbwi[~mask].reshape(-1, 1)).reshape(-1)
+        mbwi[~mask] = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi[~mask].reshape(-1, 1))\
+            .reshape(-1)
 
         mask = np.isinf(mbwi) | np.isnan(mbwi) | self.loader.invalid_mask
         mbwi = np.ma.array(mbwi, mask=mask, fill_value=-9999)
@@ -168,23 +154,6 @@ class DWWaterDetect:
 
         return awei.filled()
 
-    def list_param(self):
-        """
-        :return: nl: new list of the parameter separated by a "-"
-                len_list: number of parameter
-                list_param: list of string
-        """
-        list_param = []
-        if ',' in self.config.parameter:
-            list_param = self.config.parameter.split(',')
-        else:
-            list_param.append(self.config.parameter)
-
-        len_list = len(list_param)
-        nl = '-'.join(list_param)
-
-        return nl, len_list, list_param
-
     def run(self):
         """
         Loop through all directories in input folder, extract water pixels and save results to output folder
@@ -196,9 +165,6 @@ class DWWaterDetect:
 
         # if pdf_report is true, creates a FileMerger to assembly the FullReport
         pdf_merger = PdfFileMerger() if self.config.pdf_reports else None
-
-        #list of parameters
-        liste_parametre, nb_param, list_param = self.list_param()
 
         # Iterate through the loader. Each image is a folder in the input directory.
         for image in self.loader:
@@ -221,7 +187,6 @@ class DWWaterDetect:
                 else:
                     composite_name = None
 
-
                 # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
                 image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
@@ -242,45 +207,11 @@ class DWWaterDetect:
 
                 # if the method is average_results, the loop through bands_combinations will be done in DWImage module
                 if self.config.average_results:
-                    try:
-                        print('Calculating water mask considering the average for these combinations:')
-                        print(self.config.clustering_bands)
 
-                        # Create a file merger for this report
-                        if self.config.pdf_reports:
-                            pdf_merger_image = PdfFileMerger()
-                            pdf_merger_image.append(composite_name + '.pdf')
-                        else:
-                            pdf_merger_image = None
+                    print('Calculating water mask considering the average for these combinations:')
+                    print(self.config.clustering_bands)
 
-                        dw_image = self.create_water_mask(self.config.clustering_bands, pdf_merger_image)
-
-                        # calculate the sun glint rejection and add it to the pdf report
-                        self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
-
-                        # calc the inversion parameter and save it to self.rasterbands in the dictionary
-                        # TODO : check if working with average results
-                        if self.config.inversion:
-                            if nb_param > 1:
-                                self.calc_inversion_multiparameter(dw_image, pdf_merger_image, list_param)
-                            else:
-                                self.calc_inversion_parameter(dw_image, pdf_merger_image)
-
-                        # save the graphs
-                        if self.config.plot_graphs:
-                            self.save_graphs(dw_image, pdf_merger_image)
-
-                        # append the pdf report of this image
-                        if self.config.pdf_reports:
-                            pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
-                                                               self.config.parameter,
-                                                               pdf_merger_image,
-                                                               self.saver.output_folder))
-                    except Exception as err:
-                        print('**** ERROR DURING AVERAGE CLUSTERING ****')
-                        # todo: should we close the pdf merger in case of error?
-                        print(err)
-                    pass
+                    dw_image = self.create_mask_report(image, self.config.clustering_bands, composite_name, pdf_merger)
 
                 # Otherwise, loop through the bands combinations to make the clusters
                 else:
@@ -289,36 +220,8 @@ class DWWaterDetect:
                             print('Calculating clusters for the following combination of bands:')
                             print(band_combination)
 
-                            # if pdf_reports, create a FileMerger for this specific band combination
-                            if self.config.pdf_reports:
-                                pdf_merger_image = PdfFileMerger()
-                                pdf_merger_image.append(composite_name + '.pdf')
-                            else:
-                                pdf_merger_image = None
+                            dw_image = self.create_mask_report(image, band_combination, composite_name, pdf_merger)
 
-                            # create a dw_image object with the water mask and all the results
-                            dw_image = self.create_water_mask(band_combination, pdf_merger_image)
-
-                            # calculate the sun glint rejection and add it to the pdf report
-                            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
-
-                            # calc the inversion parameter and save it to self.rasterbands in the dictionary
-                            if self.config.inversion:
-                                if nb_param > 1:
-                                    self.calc_inversion_multiparameter(dw_image, pdf_merger_image, list_param)
-                                else:
-                                    self.calc_inversion_parameter(dw_image, pdf_merger_image)
-
-                            # save the graphs
-                            if self.config.plot_graphs:
-                                self.save_graphs(dw_image, pdf_merger_image)
-
-                            # append the pdf report of this image
-                            if self.config.pdf_reports:
-                                pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name + '_' +
-                                                                   self.config.parameter,
-                                                                   pdf_merger_image,
-                                                                   self.saver.output_folder))
                         except Exception as err:
                             print('**** ERROR DURING CLUSTERING ****')
                             # todo: should we close the pdf merger in case of error?
@@ -330,17 +233,34 @@ class DWWaterDetect:
 
         if pdf_merger is not None and dw_image is not None:
             if len(self.config.clustering_bands) == 1:
-                report_name = 'FullReport_' + dw_image.product_name + '_' + self.config.parameter
+                report_name = 'FullReport_' + dw_image.product_name
             else:
-                report_name = 'FullReport_' + self.config.parameter
+                report_name = 'FullReport'
 
             self.save_report(report_name, pdf_merger, self.saver.base_output_folder.joinpath(self.saver.area_name))
 
-        if self.config.plot_ts:
-            time_series = DWSerie.DWSerie(self.saver.output_folder, self.parameters, self.loader.shape_file)
-            time_series.run()
-
         return
+
+    def create_mask_report(self, image, band_combination, composite_name, pdf_merger):
+        # if pdf_reports, create a FileMerger for this specific band combination
+        if self.config.pdf_reports:
+            pdf_merger_image = PdfFileMerger()
+            pdf_merger_image.append(composite_name + '.pdf')
+        else:
+            pdf_merger_image = None
+        # create a dw_image object with the water mask and all the results
+        dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+        # calculate the sun glint rejection and add it to the pdf report
+        self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+        # save the graphs
+        if self.config.plot_graphs:
+            self.save_graphs(dw_image, pdf_merger_image)
+        # append the pdf report of this image
+        if self.config.pdf_reports:
+            pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name,
+                                               pdf_merger_image,
+                                               self.saver.output_folder))
+        return dw_image
 
     # save the report and return the full path as posix
     def save_report(self, report_name, pdf_merger, folder):
@@ -402,179 +322,9 @@ class DWWaterDetect:
         # check the path of the metadata file
         DWutils.check_path(xml)
         # extract angles from the metadata and make the glint calculation from it
-        Glint = DWutils.extract_angles_from_xml(xml)
+        glint = DWutils.extract_angles_from_xml(xml)
         # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
-        DWutils.create_glint_pdf(xml, image.current_image_name, output_folder, Glint, pdf_merger_image)
-
-    def calc_inversion_parameter(self, dw_image, pdf_merger_image):
-        """
-        Calculate the parameter in config.parameter and saves it to the dictionary of bands.
-        This will make it easier to make graphs correlating any band with the parameter.
-        Also, checks if there are reports, then add the parameter to it.
-        :return: The parameter matrix
-        """
-
-        # POR ENQUANTO BASTA PASSARMOS O DICIONÁRIO DE BANDAS E O PRODUTO PARA TODOS
-        mask = self.loader.invalid_mask
-        # initialize the parameter with None
-        parameter = None
-
-        if self.config.parameter == 'turb-dogliotti':
-            parameter = self.inversion_algos.turb_Dogliotti(self.loader.raster_bands['Red'],
-                                                            self.loader.raster_bands['Nir'])
-        elif self.config.parameter == 'spm-get':
-            parameter = self.inversion_algos.SPM_GET(self.loader.raster_bands['Red'], self.loader.raster_bands['Nir'],
-                                                     self.loader.product)
-
-        elif self.config.parameter == 'chl-lins':
-            parameter = self.inversion_algos.chl_lins(self.loader.raster_bands['Red'],
-                                                      self.loader.raster_bands['RedEdg1'])
-
-        elif self.config.parameter == 'aCDOM-brezonik':
-            parameter = self.inversion_algos.aCDOM_brezonik(self.loader.raster_bands['Red'],
-                                                            self.loader.raster_bands['RedEdg2'],
-                                                            self.loader.product)
-
-        elif self.config.parameter == 'chl_giteslon':
-            parameter = self.inversion_algos.chl_giteslon(self.loader.raster_bands['Red'],
-                                                          self.loader.raster_bands['RedEdg1'],
-                                                          self.loader.raster_bands['RedEdg2'])
-
-        if parameter is not None:
-            # clear the parameters array and apply the Water mask, with no_data_values
-            parameter = DWutils.apply_mask(parameter,
-                                       ~(np.where(dw_image.water_mask == 255, 0, dw_image.water_mask).astype(
-                                           bool)),
-                                       -9999)
-
-            # save the calculated parameter
-            self.saver.save_array(parameter, self.config.parameter, no_data_value=-9999)
-
-            if pdf_merger_image is not None:
-
-                max_value, min_value = self.calc_param_limits(parameter)
-
-                pdf_merger_image.append(self.create_colorbar_pdf(product_name='colorbar_' + self.config.parameter,
-                                                                 colormap=self.config.colormap,
-                                                                 min_value=min_value,
-                                                                 max_value=max_value))
-
-                pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=self.config.parameter,
-                                                                    burn_in_array=parameter,
-                                                                    color=None,
-                                                                    fade=0.8,
-                                                                    min_value=min_value,
-                                                                    max_value=max_value,
-                                                                    opt_relative_path=None,
-                                                                    colormap=self.config.colormap,
-                                                                    uniform_distribution=self.config.uniform_distribution,
-                                                                    no_data_value=-9999))
-
-    def calc_inversion_multiparameter(self, dw_image, pdf_merger_image, list_param):
-        """
-        Calculate the parameters in config.parameter
-        This will make it easier to make graphs correlating any band with the parameter.
-        Also, checks if there are reports, then add the parameter to it.
-        :return: save a multiparameter tif with each parameter per band
-        """
-
-        # initialize the parameter with None
-        parameter = None
-
-        mask = self.loader.invalid_mask
-
-        band = []
-        red = self.loader.raster_bands['Red']
-        gray = np.dot(red, 1 / 255)
-        # rred = np.dot(red, 1000)
-
-        self.saver.save_array(gray, 'red.tif', self.saver.output_folder, no_data_value=-9999)
-        band = [red]
-
-        band.append(dw_image.water_mask)
-
-        for i in range(0, len(list_param)):
-            if list_param[i] == 'turb-dogliotti':
-                Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
-                                                    self.loader.raster_bands['Nir'], mask)
-
-                parameter = self.inversion_algos.turb_Dogliotti(Red, Nir)
-
-            elif list_param[i] == 'spm-get':
-                Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
-                                                    self.loader.raster_bands['Nir'], mask)
-
-                parameter = self.inversion_algos.SPM_GET(Red, Nir,
-                                                         self.loader.product)
-
-            elif list_param[i] == 'chl-lins':
-                Red, RedEdg1 = DWutils.remove_negatives(self.loader.raster_bands['Red'],
-                                                        self.loader.raster_bands['RedEdg1'],
-                                                        mask)
-
-                parameter = self.inversion_algos.chl_lins(Red, RedEdg1)
-
-            elif list_param[i] == 'aCDOM-brezonik':
-                Red, RedEdg2 = DWutils.remove_negatives(self.loader.raster_bands['Red'],
-                                                        self.loader.raster_bands['RedEdg2'],
-                                                        mask)
-
-                parameter = self.inversion_algos.aCDOM_brezonik(Red, RedEdg2,
-                                                                self.loader.product)
-
-            elif list_param[i] == 'chl-giteslon':
-                # TODO: adapt remove negatives function so it can have more than 2 input bands
-                # Red, Nir = DWutils.remove_negatives(self.loader.raster_bands['Red'],
-                #                                     self.loader.raster_bands['Nir'], mask)
-
-                parameter = self.inversion_algos.chl_giteslon(self.loader.raster_bands['Red'],
-                                                              self.loader.raster_bands['RedEdg1'],
-                                                              self.loader.raster_bands['RedEdg2'])
-
-            if parameter is not None:
-                # clear the parameters array and apply the Water mask, with no_data_values
-
-                param = DWutils.apply_mask(parameter,
-                                           ~(np.where(dw_image.water_mask == 255, 0, dw_image.water_mask).astype(
-                                               bool)),
-                                           -9999)
-                # save the calculated parameter
-                self.saver.save_array(param, list_param[i], no_data_value=-9999)
-                band.append(param)
-
-                if pdf_merger_image is not None:
-                    max_value, min_value = self.calc_param_limits(param)
-
-                    pdf_merger_image.append(self.create_colorbar_pdf(product_name='colorbar_' + list_param[i],
-                                                                     colormap=self.config.colormap,
-                                                                     min_value=min_value,
-                                                                     max_value=max_value))
-
-                    pdf_merger_image.append(self.create_rgb_burn_in_pdf(product_name=list_param[i],
-                                                                        burn_in_array=param,
-                                                                        color=None,
-                                                                        fade=0.8,
-                                                                        min_value=min_value,
-                                                                        max_value=max_value,
-                                                                        opt_relative_path=None,
-                                                                        colormap=self.config.colormap,
-                                                                        uniform_distribution=self.config.uniform_distribution,
-                                                                        no_data_value=-9999))
-
-        # stack arrays
-        stack = np.array(band)
-        # create a tif with all bands given as parameter
-        self.saver.save_multiband(stack, "multiband_" + self.list_param()[0], self.saver.output_folder,
-                                  no_data_value=-9999)
-
-    def calc_param_limits(self, parameter, no_data_value=-9999):
-
-        valid = parameter[parameter != no_data_value]
-        min_value = np.percentile(valid, 1) if self.config.min_param_value is None else self.config.min_param_value
-        #min_value = np.quantile(valid, 0.25) if self.config.min_param_value is None else self.config.min_param_value
-        max_value = np.percentile(valid, 75) if self.config.max_param_value is None else self.config.max_param_value
-        #max_value = np.quantile(valid, 0.75) if self.config.max_param_value is None else self.config.max_param_value
-        return max_value * 1.1, min_value * 0.8
+        DWutils.create_glint_pdf(xml, image.current_image_name, output_folder, glint, pdf_merger_image)
 
     def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
 
