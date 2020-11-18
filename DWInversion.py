@@ -179,6 +179,8 @@ class DWInversionAlgos:
                             chlorolins(rho_red, rho_rededge),
                             self.nodata)
         chl_conc = np.where(chl_conc < 0, self.nodata, chl_conc)
+        #adding threshold
+        chl_conc = np.where(chl_conc > 4000, self.nodata, chl_conc)
         return chl_conc
 
     # TODO set discrete indexes from Mishra 2012
@@ -365,7 +367,8 @@ class DWInversionAlgos:
         turb = np.where((rho_red >= limit_inf) & (rho_red <= limit_sup), t_mixing, turb)
         turb = np.where(rho_red > limit_sup, t_high, turb)
         turb = np.where(turb < 0, self.nodata, turb)
-
+        #adding threshold
+        turb = np.where(turb > 4000, self.nodata, turb)
         return turb
 
 # factoriser et mettre r_converter ailleurs

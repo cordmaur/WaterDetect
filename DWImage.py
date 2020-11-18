@@ -174,7 +174,7 @@ class DWImageClustering:
                 print('k={} :Silhouete index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
             else:
-                computed_metrics.append(metrics.calinski_harabaz_score(data, labels))
+                computed_metrics.append(metrics.calinski_harabasz_score(data, labels))
                 print('k={} :Calinski_harabaz index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
 
