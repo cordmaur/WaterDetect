@@ -11,19 +11,17 @@ Created on:
 import DWWaterDetect
 import argparse
 
-# check if the system was called from the main flux
+# check if this file has been called as script
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", help="The products input folder. Required.", required=True, type=str)
     parser.add_argument("-o", "--out", help="Output directory. Required.", required=True, type=str)
     parser.add_argument("-s", "--shp", help="SHP file. Optional.", type=str)
-    parser.add_argument("-p", "--product", help='The product to be processed (S2_Theia, Landsat or S2_L1C)',
+    parser.add_argument("-p", "--product", help='The product to be processed (S2_THEIA, LANDSAR or S2_L1C)',
                         default='S2_THEIA', type=str)
-    parser.add_argument("-pa", "--parameters", nargs='+',
-                        help="Name of the parameters for the time series in the list: spm-get,turb-dogliotti,chl-lins,aCDOM-brezonik.",
-                        default=None)
-    parser.add_argument('-c', '--config', help='Configuration .ini file. If not specified WaterDetect.ini is used as default', type=str)
+    parser.add_argument('-c', '--config', help='Configuration .ini file. If not specified WaterDetect.ini '
+                                               'is used as default', type=str)
 
     # product type (theia, sen2cor, landsat, etc.)
     # optional shape file
@@ -35,5 +33,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     water_detect = DWWaterDetect.DWWaterDetect(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
-                                               product=args.product, parameters=args.parameters,config_file=args.config)
+                                               product=args.product, config_file=args.config)
     water_detect.run()
