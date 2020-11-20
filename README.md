@@ -14,9 +14,17 @@ The WaterDetect algorithm uses a multidimensional agglomerative clustering techn
 
 All the details and tests has been described in the article <b>Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors</b>, under revision by the journal Remote Sensing of Environment.
 
-<b>How to cite ("accepted by Remote Sensing of Environment, pending publication"):</b><br>
+## How to cite
+<b> (Accepted by Remote Sensing of Environment, pending publication):</b><br>
 Cordeiro, M.C.R, Martinez, J.-M., Pena Luque, S., 2020. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment XX, XX. 
 
+## Supported Formats
+The algorithm has been developed taking into account atmospherically corrected images from MAJA, as described in the paper. However other image formats are also supported.
+To the present, the following image formats are supported:
+* Sentinel 2 - L2A from MAJA: the products can be downloaded from (https://www.theia-land.fr/en/product/sentinel-2-surface-reflectance/)
+* Sentinel 2 - L2A from Sen2Cor: The L2A processed by Sen2Cor are available at Copernicus SciHub (https://scihub.copernicus.eu/)
+* Sentinel 2 - L1C: L1C Sentinel 2 images can be downloaded from Copernicus SciHub (https://scihub.copernicus.eu/)
+* Landsat 8 - To be validated
 
 ## Dependencies
 The required libraries are:
@@ -28,7 +36,12 @@ scipy>=1.3.2
 scikit-learn>=0.22
 skimage>=0.16.2
 numpy>=1.17
+PIL>=8.0
+lxml>=4.5
 ```
+### Note:
+GDAL is required to open the satellite images.
+
 The test_dependencies.py can be used to check if all libraries are loading correctly. Simply run:
 
 ```python test_dependencies.py```
