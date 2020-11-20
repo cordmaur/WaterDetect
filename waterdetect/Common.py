@@ -4,22 +4,20 @@ import configparser
 import ast
 
 from sklearn.model_selection import train_test_split
-# from sklearn.preprocessing import RobustScaler
-# from sklearn.preprocessing import MaxAbsScaler
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import QuantileTransformer
+from waterdetect import DWProducts, gdal
 
-#Modif Marion
-from lxml import etree
-from PIL import Image, ImageDraw, ImageFont
-
-from osgeo import gdal
 import numpy as np
 from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+
+def test_ini():
+    for attr in dir(DWProducts):
+        print(getattr(DWProducts, attr))
 
 class DWConfig:
 
@@ -582,7 +580,9 @@ class DWutils:
         # return scaled_rgb_color_ramp.reshape(rgb_color_ramp.shape)
 
     @staticmethod
-    def array2raster(filename, array, geo_transform, projection, nodatavalue=0, dtype=gdal.GDT_Float32):
+    def array2raster(filename, array, geo_transform, projection, nodatavalue=0, dtype=None):
+
+        dtype = gdal.GDT_Float32 if dtype is None else dtype
 
         cols = array.shape[1]
         rows = array.shape[0]
@@ -626,9 +626,11 @@ class DWutils:
 
     # -----------------------------------------------
     @staticmethod
-    def array2multiband(filename, array, geo_transform, projection, nodatavalue=0, dtype=gdal.GDT_Float32):
+    def array2multiband(filename, array, geo_transform, projection, nodatavalue=0, dtype=None):
         print('-----------------------------------------------')
         print('JE FAIS LE RASTER MULTILAYERS')
+
+        dtype = gdal.GDT_Float32 if dtype is None else dtype
 
         cols = array[0].shape[1]
         rows = array[0].shape[0]

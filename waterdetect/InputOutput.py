@@ -1,10 +1,9 @@
 import os
 import sys
 import numpy as np
-from osgeo import gdal
 from pathlib import Path
-from DWCommon import DWutils
-
+from waterdetect.Common import DWutils
+from waterdetect import gdal
 
 class DWLoader:
 
@@ -86,9 +85,9 @@ class DWLoader:
         else:
             if 'L8_USGS' in self.product:
                 product_dict = self.dicL8USGS
-            elif self.product in ["S2_PEPS", "S2_S2COR", "S2_THEIA", "S2_L2H"]:
+            elif self.product in ["S2_THEIA"]:
                 product_dict = self.dicS2_THEIA
-            elif self.product in ["SEN2COR"]:
+            elif self.product in ["S2_S2COR"]:
                 product_dict = self.dicSEN2COR
             elif self.product in ["S2_L1C"]:
                 product_dict = self.dicS2_L1C
@@ -415,7 +414,9 @@ class DWSaver:
 
         return output_folder
 
-    def save_array(self, array, name, opt_relative_path=None, no_data_value=0, dtype=gdal.GDT_Float32):
+    def save_array(self, array, name, opt_relative_path=None, no_data_value=0, dtype=None):
+
+        dtype = gdal.GDT_Float32 if dtype is None else dtype
 
         if opt_relative_path:
             filename = self.output_folder.joinpath(opt_relative_path)
@@ -444,7 +445,7 @@ class DWSaver:
         return filename
 
     # -------------------------------------------------------------------------
-    def save_multiband(self, array, name, opt_relative_path=None, no_data_value=0, dtype=gdal.GDT_Float32):
+    def save_multiband(self, array, name, opt_relative_path=None, no_data_value=0, dtype=None):
         """
         Save a multilayer array
 
@@ -453,6 +454,9 @@ class DWSaver:
 
         :return: the complete filename
         """
+
+        dtype = gdal.GDT_Float32 if dtype is None else dtype
+
         if opt_relative_path:
             filename = self.output_folder.joinpath(opt_relative_path)
             filename.mkdir(exist_ok=True)

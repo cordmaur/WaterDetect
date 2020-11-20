@@ -1,12 +1,81 @@
-from DWInputOutput import DWSaver, DWLoader
-from DWCommon import DWConfig, DWutils
-import DWImage
-import DWSerie
+from waterdetect.InputOutput import DWSaver, DWLoader
+from waterdetect.Common import DWConfig, DWutils, gdal
+from waterdetect.Image import DWImageClustering
+from pathlib import Path
 import numpy as np
 from PyPDF2 import PdfFileMerger
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
+import argparse
 import os
-from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, RobustScaler
-from osgeo import gdal
+
+
+
+# #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Author: Mauricio Cordeiro
+"""
+
+
+def main():
+    """
+    The main function is just a wrapper to create a entry point script called waterdetect.
+    With the package installed you can just call waterdetect /? in the command prompt to see the options.
+    """
+    parser = argparse.ArgumentParser(description='The waterdetect is a high speed water detection algorithm for sate'
+                                                 'llite images. It will loop through all images available in the input '
+                                                 'folder and write results for every combination specified in the'
+                                                 ' .ini file to the output folder. It can also run for single images '
+                                                 'from Python console or Jupyter notebook. Refer to the online'
+                                                 'documentation ',
+                                     epilog="To copy the package's default .ini file into the current directory, type:"
+                                            ' `waterdetect -GC .` without other arguments and it will copy  '
+                                            'WaterDetect.ini into the current directory.')
+
+    parser.add_argument("-GC", "--GetConfig", help="Copy the WaterDetect.ini from the package into the specified"
+                                                   "directory and skips the processing. Once copied you can edit the "
+                                                   ".ini file and launch the waterdetect without -c option.",
+                        action="store_true")
+    parser.add_argument("-i", "--input", help="The products input folder. Required.", required=False, type=str)
+    parser.add_argument("-o", "--out", help="Output directory. Required.", required=False, type=str)
+    parser.add_argument("-s", "--shp", help="SHP file. Optional.", type=str)
+    parser.add_argument("-p", "--product", help='The product to be processed (S2_THEIA, L8_USGS, S2_L1C or S2_S2COR)',
+                        default='S2_THEIA', type=str)
+    parser.add_argument('-c', '--config', help='Configuration .ini file. If not specified WaterDetect.ini '
+                                               'from current dir and used as default', type=str)
+
+    # product type (theia, sen2cor, landsat, etc.)
+    # optional shape file
+    # generate graphics (boolean)
+    # name of config file with the bands-list for detecting, saving graphics, etc. If not specified, use default name
+    #   if clip MIR or not, number of pixels to plot in graph, number of clusters, max pixels to process, etc.
+    # name of the configuration .ini file (optional, default is WaterDetect.ini in the same folder
+
+    args = parser.parse_args()
+
+    # If GetConfig option, just copy the WaterDetect.ini to the current working directory
+    if args.GetConfig:
+        src = Path(__file__).parent/'WaterDetect.ini'
+        dst = Path(os.getcwd())/'WaterDetect.ini'
+
+        print(f'Copying {src} into current dir.')
+        dst.write_text(src.read_text())
+        print(f'WaterDetect.ini copied into {dst.parent}.')
+
+    else:
+        if (args.input is None) or (args.output is None):
+            print('Please specify input and output folders (-i, -o)')
+
+        else:
+            water_detect = DWWaterDetect(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
+                                         product=args.product, config_file=args.config)
+            water_detect.run_batch()
+
+
+# check if this file has been called as script
+if __name__ == '__main__':
+    main()
 
 
 class DWWaterDetect:
@@ -156,7 +225,18 @@ class DWWaterDetect:
 
     def run(self):
         """
-        Loop through all directories in input folder, extract water pixels and save results to output folder
+        Run the detection algorithm for one image and one combination only.
+        The input folder should be the folder of the unzipped satellite image.
+        :return: instance of DWImageClustering  with mask and clustering results
+        """
+        pass
+
+    def run_batch(self):
+        """
+        Run batch is intended for multi processing of various images and bands combinations.
+        It Loops through all unzipped images in input folder, extract water pixels and save results to output folder
+        ATT: The input folder is not a satellite image itself. It should be the parent folder containing all images.
+        For single detection, use run() method.
         :return: None
         """
 
@@ -289,7 +369,7 @@ class DWWaterDetect:
     def create_water_mask(self, band_combination, pdf_merger_image):
 
         # create the clustering image
-        dw_image = DWImage.DWImageClustering(self.loader.raster_bands, band_combination,
+        dw_image = DWImageClustering(self.loader.raster_bands, band_combination,
                                              self.loader.invalid_mask, self.config)
         dw_image.run_detect_water()
 
@@ -402,3 +482,4 @@ class DWWaterDetect:
         self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask', dtype=gdal.GDT_Byte)
 
         return
+

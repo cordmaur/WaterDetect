@@ -24,7 +24,6 @@ import matplotlib #ok
 import matplotlib.pyplot as plt #ok
 import numpy as np #ok
 import os #ok
-import pysptools.abundance_maps as abundance_maps #ok
 import sys #ok
 matplotlib.use('Agg')
 
