@@ -3,28 +3,30 @@ import sys
 import numpy as np
 from pathlib import Path
 from waterdetect.Common import DWutils
-from waterdetect import gdal
+from waterdetect import gdal, DWProducts
 
 class DWLoader:
+    satellite_Dict = {
+        'S2_THEIA': {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
+                                     'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5', 'RedEdg2': 'B6', 'RedEdg3': 'B7'},
+                     'suffix': '.tif', 'string': 'SRE'},
 
-    dicS2_THEIA = {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
-                   'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5', 'RedEdg2': 'B6', 'RedEdg3': 'B7'},
-                   'suffix': '.tif', 'string': 'SRE'}
+        'S2_S2COR': {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
+                                     'Nir': 'B08', 'Nir2': 'B8A'}},
 
-    dicSEN2COR = {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12'},
-                  'Nir': 'B08', 'Nir2': 'B8A'}
+        'L8_USGS': {'bands_names': {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}},
 
-    dicL8USGS = {'bands_names': {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}}
+        'S2_L1C': {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
+                                     'Nir': 'B08', 'Nir2': 'B8A'},
+                   'suffix': '.jp2',
+                   'string': '',
+                   'subdir': 'GRANULE/*/IMG_DATA'},
 
-    dicLANDSAT = {'bands_names': {'Aero': 'band1', 'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
-                  'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
-                  'suffix': '.tif', 'string': 'sr_band'}
+        'L8_L1C': {'bands_names': {'Aero': 'band1', 'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
+                                   'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
+                   'suffix': '.tif', 'string': 'sr_band'}
+    }
 
-    dicS2_L1C = {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
-                                 'Nir': 'B08', 'Nir2': 'B8A'},
-                 'suffix': '.jp2',
-                 'string': '',
-                 'subdir': 'GRANULE/*/IMG_DATA'}
 
     def __init__(self, input_folder, shape_file, product, ref_band):
 
@@ -77,24 +79,12 @@ class DWLoader:
 
     @property
     def product_dict(self):
-
-        if self.product in ["L8_THEIA", "S5_THEIA"]:
-            print('Product not yet implemented')
-            sys.exit()
+        if self.product in self.satellite_Dict.keys():
+            return self.satellite_Dict[self.product]
 
         else:
-            if 'L8_USGS' in self.product:
-                product_dict = self.dicL8USGS
-            elif self.product in ["S2_THEIA"]:
-                product_dict = self.dicS2_THEIA
-            elif self.product in ["S2_S2COR"]:
-                product_dict = self.dicSEN2COR
-            elif self.product in ["S2_L1C"]:
-                product_dict = self.dicS2_L1C
-            else:
-                product_dict = self.dicLANDSAT
-
-        return product_dict
+            print('Product not yet implemented')
+            sys.exit()
 
     @property
     def area_name(self):

@@ -8,7 +8,7 @@ long_description = short_description
 
 setuptools.setup(
     name="waterdetect", # Replace with your own username
-    version="1.3",
+    version="1.4",
     author="Maurício Cordeiro",
     author_email="cordmaur@gmail.com",
     description=short_description,
@@ -31,6 +31,8 @@ setuptools.setup(
         'numpy>=1.17',
         'scikit_learn>=0.23',
         'matplotlib>=3.3',
-        'PyPDF2>=1.26'
+        'PyPDF2>=1.26',
+        'lxml>=4.6.0',
+        'pillow>=8.0.0'
     ]
 )

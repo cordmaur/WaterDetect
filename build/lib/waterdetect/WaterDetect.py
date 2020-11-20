@@ -1,3 +1,6 @@
+# #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from waterdetect.InputOutput import DWSaver, DWLoader
 from waterdetect.Common import DWConfig, DWutils, gdal
 from waterdetect.Image import DWImageClustering
@@ -8,10 +11,6 @@ from sklearn.preprocessing import MinMaxScaler, RobustScaler
 import argparse
 import os
 
-
-
-# #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Author: Mauricio Cordeiro
@@ -64,7 +63,7 @@ def main():
         print(f'WaterDetect.ini copied into {dst.parent}.')
 
     else:
-        if (args.input is None) or (args.output is None):
+        if (args.input is None) or (args.out is None):
             print('Please specify input and output folders (-i, -o)')
 
         else:
@@ -330,8 +329,12 @@ class DWWaterDetect:
             pdf_merger_image = None
         # create a dw_image object with the water mask and all the results
         dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+        
         # calculate the sun glint rejection and add it to the pdf report
-        self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+        # TODO: Glint only works for S2_THEIA at the present
+        if image.product == 'S2_THEIA':
+            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+
         # save the graphs
         if self.config.plot_graphs:
             self.save_graphs(dw_image, pdf_merger_image)

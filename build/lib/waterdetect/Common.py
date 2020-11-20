@@ -14,6 +14,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from lxml import etree
+from PIL import Image, ImageDraw, ImageFont
 
 def test_ini():
     for attr in dir(DWProducts):
