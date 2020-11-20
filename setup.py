@@ -39,7 +39,7 @@ setuptools.setup(
         'scikit_learn>=0.23',
         'matplotlib>=3.3',
         'PyPDF2>=1.26',
-        'scikit-image>=0.16',
-        'GDAL>=3.0.2',
+        # 'scikit-image>=0.16',
+        # 'GDAL>=3.0.2',
     ]
 )
