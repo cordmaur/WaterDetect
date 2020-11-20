@@ -1,7 +1,14 @@
 README.md
 setup.cfg
 setup.py
+waterdetect/Common.py
+waterdetect/Image.py
+waterdetect/InputOutput.py
+waterdetect/WaterDetect.py
+waterdetect/__init__.py
 waterdetect.egg-info/PKG-INFO
 waterdetect.egg-info/SOURCES.txt
 waterdetect.egg-info/dependency_links.txt
+waterdetect.egg-info/entry_points.txt
+waterdetect.egg-info/requires.txt
 waterdetect.egg-info/top_level.txt
