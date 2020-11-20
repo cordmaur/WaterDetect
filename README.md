@@ -34,44 +34,81 @@ matplotlib>=3.1.2
 PyPDF2>=1.26.0
 scipy>=1.3.2
 scikit-learn>=0.22
-skimage>=0.16.2
+skikit-image>=0.16.2
 numpy>=1.17
 PIL>=8.0
 lxml>=4.5
 ```
-### Note:
-GDAL is required to open the satellite images.
+### Note 1:
+GDAL is required to open the satellite images. It's still possible to use without GDAL, from a python console or jupyter notebook, loading the rasters manually and passing all the necessary bands to the DWImageClustering class. Check the topic "Usage from Console" for more information.
+
+### Note 2:
+Scikit-Image is only necessary to run Otsu threshold method. 
 
 The test_dependencies.py can be used to check if all libraries are loading correctly. Simply run:
 
-```python test_dependencies.py```
 
-## Usage
-To use it, you should clone the project to your repository and run "python runWaterColor.py --help"
+## Instalation
+The easiest way to install waterdetect package is with `pip` command:<br>
+`pip install waterdetect`
+
+Alternatively, you can clone the repository and install from its root throught the following commands:
 ```
-usage: runWaterColor.py [-h] -i INPUT -o OUT [-s SHP] [-p PRODUCT] [-g]
-                        [-c CONFIG]
+git clone https://github.com/cordmaur/WaterDetect.git
+cd WaterDetect
+pip install .
+```
+
+Once installed, a `waterdetect` entry point is created in the path of the environment.
+One can check the installation and options by running `waterdetect --help`. If GDAL is not found, a message will raise indicating that waterdetect will only run from a console.
+```
+usage: waterdetect [-h] [-GC] [-i INPUT] [-o OUT] [-s SHP] [-p PRODUCT]
+                   [-c CONFIG]
+
+The waterdetect is a high speed water detection algorithm for satellite
+images. It will loop through all images available in the input folder and
+write results for every combination specified in the .ini file to the output
+folder. It can also run for single images from Python console or Jupyter
+notebook. Refer to the onlinedocumentation
 
 optional arguments:
   -h, --help            show this help message and exit
+  -GC, --GetConfig      Copy the WaterDetect.ini from the package into the
+                        specifieddirectory and skips the processing. Once
+                        copied you can edit the .ini file and launch the
+                        waterdetect without -c option.
   -i INPUT, --input INPUT
                         The products input folder. Required.
   -o OUT, --out OUT     Output directory. Required.
   -s SHP, --shp SHP     SHP file. Optional.
   -p PRODUCT, --product PRODUCT
-                        The product to be processed (S2_Theia, Landsat,
-                        S2_L1C)
-  -g, --off_graphs      Turns off the scatter plot graphs
+                        The product to be processed (S2_THEIA, L8_USGS, S2_L1C
+                        or S2_S2COR)
   -c CONFIG, --config CONFIG
                         Configuration .ini file. If not specified
-                        WaterDetect.ini is used as default
+                        WaterDetect.ini from current dir and used as default
+
+To copy the package's default .ini file into the current directory, type:
+`waterdetect -GC .` without other arguments and it will copy WaterDetect.ini
+into the current directory.
 ```
+
+### Config File
+The waterdetect needs a config file that specifies the bands used in the clustering process as well as other parameters.
+To obtain the default version of this file,  one can use `waterdetec -GC` and the file WaterDetect.ini will be copied into the current working folder.
+
+## Usage as Script
+The basic usage for the waterdetect is:<br>
+`waterdetect -i c:/input_folder -i -c:/output_folder -p S2_THEIA`
 
 The input directory should contain the uncompressed folders for the images. The script will loop through all folders in the input directory and save the water masks, graphs and reports to the output folder. The output folder must be created beforehand.
 
 If the config file is not specified, the script will search for WaterDetect.ini in the current folder.
 
-## Config File
+## Usage from Console
+Once properly installed, the WaterDetect can be run from a JupyterNotebook:
+
+
 
 ## Contributors
 > Author: Maurício Cordeiro (ANA/GET)<br>
