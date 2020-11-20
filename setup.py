@@ -15,7 +15,7 @@ long_description = short_description
 
 setuptools.setup(
     name="waterdetect", # Replace with your own username
-    version="1.1",
+    version="1.2",
     author="Maurício Cordeiro",
     author_email="cordmaur@gmail.com",
     description=short_description,
@@ -40,6 +40,6 @@ setuptools.setup(
         'matplotlib>=3.3',
         'PyPDF2>=1.26',
         'scikit-image>=0.16',
-        # 'GDAL>=3.0.2',
+        'GDAL>=3.0.2',
     ]
 )
