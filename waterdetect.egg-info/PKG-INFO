@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: waterdetect
-Version: 1.5
+Version: 1.5.1
 Summary: WaterDetect generates open water cover mask for L2A Sentinel 2 imagery without any a priori knowledge on the scene. It can also be used for Landsat 8 images and for other multispectral clustering/segmentation tasks.
 Home-page: https://github.com/cordmaur/WaterDetect
 Author: Maurício Cordeiro
