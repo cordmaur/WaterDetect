@@ -20,7 +20,7 @@ Author: Mauricio Cordeiro
 def main():
     """
     The main function is just a wrapper to create a entry point script called waterdetect.
-    With the package installed you can just call waterdetect /? in the command prompt to see the options.
+    With the package installed you can just call waterdetect -h in the command prompt to see the options.
     """
     parser = argparse.ArgumentParser(description='The waterdetect is a high speed water detection algorithm for sate'
                                                  'llite images. It will loop through all images available in the input '
@@ -32,7 +32,7 @@ def main():
                                             ' `waterdetect -GC .` without other arguments and it will copy  '
                                             'WaterDetect.ini into the current directory.')
 
-    parser.add_argument("-GC", "--GetConfig", help="Copy the WaterDetect.ini from the package into the specified"
+    parser.add_argument("-GC", "--GetConfig", help="Copy the WaterDetect.ini from the package into the current "
                                                    "directory and skips the processing. Once copied you can edit the "
                                                    ".ini file and launch the waterdetect without -c option.",
                         action="store_true")
@@ -79,14 +79,15 @@ if __name__ == '__main__':
 
 class DWWaterDetect:
 
-    def __init__(self, input_folder, output_folder, shape_file, product, config_file):
+    def __init__(self, input_folder, output_folder, shape_file, product, config_file, single_mode=False):
 
         # Create the Configuration object.
         # It loads the configuration file (WaterDetect.ini) and holds all the defaults if missing parameters
         self.config = DWConfig(config_file=config_file)
 
         # Create a Loader for the product
-        self.loader = DWLoader(input_folder, shape_file, product, ref_band=self.config.reference_band)
+        self.loader = DWLoader(input_folder, shape_file, product, ref_band=self.config.reference_band,
+                               single_mode=single_mode)
 
         # Create a saver object
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
@@ -222,15 +223,65 @@ class DWWaterDetect:
 
         return awei.filled()
 
-    def run(self):
+    @classmethod
+    def run_single(cls, image_folder, temp_folder=None, shape_file=None, product='S2_THEIA', config_file=None):
         """
         Run the detection algorithm for one image and one combination only.
         The input folder should be the folder of the unzipped satellite image.
         :return: instance of DWImageClustering  with mask and clustering results
         """
-        pass
+        wd = cls(input_folder=image_folder,
+                 output_folder=temp_folder,
+                 shape_file=shape_file,
+                 product=product,
+                 config_file=config_file,
+                 single_mode=True)
 
-    def run_batch(self):
+        print('passou aqui')
+
+        for image in wd.loader:
+            wd.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
+            # if there is a shape_file specified, clip necessary bands and then update the output projection
+            if image.shape_file:
+                image.clip_bands(wd.necessary_bands(wd.config.create_composite), wd.config.reference_band,
+                                 wd.saver.temp_dir)
+                wd.saver.update_geo_transform(image.geo_transform, image.projection)
+
+            image.load_raster_bands(wd.necessary_bands(include_rgb=False))
+
+            # load the masks specified in the config (internal masks for theia or landsat) and the external tif mask
+            image.load_masks(wd.config.get_masks_list(image.product),
+                             wd.config.external_mask,
+                             wd.config.mask_name,
+                             wd.config.mask_valid_value,
+                             wd.config.mask_invalid_value)
+
+            # Test if there is enough valid pixels in the clipped images
+            if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > wd.config.maximum_invalid:
+                print('Not enough valid pixels in the image area')
+                continue
+
+            # calc the necessary indices and update the image's mask
+            wd.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=wd.config.save_indices)
+
+            # if the method is average_results, the loop through bands_combinations will be done in DWImage module
+            if wd.config.average_results:
+                print('Calculating water mask considering the average for these combinations:')
+                clustering_bands = wd.config.clustering_bands
+
+            else:
+                print('Calculating clusters for the following combination of bands:')
+                clustering_bands = wd.config.clustering_bands[0]
+
+            print(clustering_bands)
+            dw_image = wd.create_mask_report(image, clustering_bands, None, None,
+                                               None)
+
+        return dw_image
+
+
+
+    def run_batch(self, post_callback=None):
         """
         Run batch is intended for multi processing of various images and bands combinations.
         It Loops through all unzipped images in input folder, extract water pixels and save results to output folder
@@ -290,7 +341,8 @@ class DWWaterDetect:
                     print('Calculating water mask considering the average for these combinations:')
                     print(self.config.clustering_bands)
 
-                    dw_image = self.create_mask_report(image, self.config.clustering_bands, composite_name, pdf_merger)
+                    dw_image = self.create_mask_report(image, self.config.clustering_bands, composite_name, pdf_merger,
+                                                       post_callback)
 
                 # Otherwise, loop through the bands combinations to make the clusters
                 else:
@@ -299,7 +351,8 @@ class DWWaterDetect:
                             print('Calculating clusters for the following combination of bands:')
                             print(band_combination)
 
-                            dw_image = self.create_mask_report(image, band_combination, composite_name, pdf_merger)
+                            dw_image = self.create_mask_report(image, band_combination, composite_name, pdf_merger,
+                                                               post_callback)
 
                         except Exception as err:
                             print('**** ERROR DURING CLUSTERING ****')
@@ -320,26 +373,31 @@ class DWWaterDetect:
 
         return
 
-    def create_mask_report(self, image, band_combination, composite_name, pdf_merger):
+    def create_mask_report(self, image, band_combination, composite_name, pdf_merger, post_callback):
         # if pdf_reports, create a FileMerger for this specific band combination
-        if self.config.pdf_reports:
+        if self.config.pdf_reports & (pdf_merger is not None):
             pdf_merger_image = PdfFileMerger()
             pdf_merger_image.append(composite_name + '.pdf')
         else:
             pdf_merger_image = None
+
         # create a dw_image object with the water mask and all the results
         dw_image = self.create_water_mask(band_combination, pdf_merger_image)
-        
+
         # calculate the sun glint rejection and add it to the pdf report
         # TODO: Glint only works for S2_THEIA at the present
         if image.product == 'S2_THEIA':
             self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
+        # if there is a post processing callback, call it passing the mask and the pdf_merger_image
+        if post_callback is not None:
+            post_callback(dw_image=dw_image, pdf_merger=pdf_merger_image)
+
         # save the graphs
         if self.config.plot_graphs:
             self.save_graphs(dw_image, pdf_merger_image)
         # append the pdf report of this image
-        if self.config.pdf_reports:
+        if self.config.pdf_reports & (pdf_merger is not None):
             pdf_merger.append(self.save_report('ImageReport' + '_' + dw_image.product_name,
                                                pdf_merger_image,
                                                self.saver.output_folder))

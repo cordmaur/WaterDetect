@@ -27,15 +27,19 @@ class DWLoader:
                    'suffix': '.tif', 'string': 'sr_band'}
     }
 
-
-    def __init__(self, input_folder, shape_file, product, ref_band):
+    def __init__(self, input_folder, shape_file=None, product='S2_THEIA', ref_band='Red', single_mode=False):
 
         # save the input folder (holds all the images) and the shapefile
         self.input_folder = DWutils.check_path(input_folder, is_dir=True)
         self.shape_file = DWutils.check_path(shape_file, is_dir=False)
 
         # load all sub-directories in the input folder (images) in a list
-        self.images = DWutils.get_directories(self.input_folder)
+        if not single_mode:
+            self.images = DWutils.get_directories(self.input_folder)
+
+        # If single_mode, stores just the destination folder as the only image
+        else:
+            self.images = [self.input_folder]
 
         # the product indicates if the images are S2_THEIA, LANDSAT, SEN2COR, etc.
         self.product = product.upper()
@@ -105,6 +109,7 @@ class DWLoader:
         :return: Posixpath of current image
         """
         return self.images[self._index]
+
 
     @property
     def current_image_name(self):
