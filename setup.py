@@ -8,7 +8,7 @@ long_description = short_description
 
 setuptools.setup(
     name="waterdetect", # Replace with your own username
-    version="1.5",
+    version="1.0.5",
     author="Maurício Cordeiro",
     author_email="cordmaur@gmail.com",
     description=short_description,
