@@ -18,6 +18,9 @@ All the details and tests has been described in the article <b>Automatic Water D
 <b> (Accepted by Remote Sensing of Environment, pending publication):</b><br>
 Cordeiro, M.C.R, Martinez, J.-M., Pena Luque, S., 2020. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment XX, XX. 
 
+## Tutorial
+The following topics have the first steps to install and run the library. For a more comprehensive tutorial with code samples and results please refer to this tutorial https://cordmaur.medium.com/water-detection-in-high-resolution-satellite-images-using-the-waterdetect-python-package-7c5a031e3d16.
+
 ## Supported Formats
 The algorithm has been developed taking into account atmospherically corrected images from MAJA, as described in the paper. However other image formats are also supported.
 To the present, the following image formats are supported:
