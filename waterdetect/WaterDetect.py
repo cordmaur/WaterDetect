@@ -69,7 +69,7 @@ def main():
         else:
             water_detect = DWWaterDetect(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
                                          product=args.product, config_file=args.config)
-            water_detect.run_batch()
+            water_detect._detect_water()
 
 
 # check if this file has been called as script
@@ -91,6 +91,8 @@ class DWWaterDetect:
 
         # Create a saver object
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
+
+        self.single_mode = single_mode
 
         return
 
@@ -224,7 +226,8 @@ class DWWaterDetect:
         return awei.filled()
 
     @classmethod
-    def run_single(cls, image_folder, temp_folder=None, shape_file=None, product='S2_THEIA', config_file=None):
+    def run_single(cls, image_folder, temp_folder=None, shape_file=None, product='S2_THEIA', config_file=None,
+                   post_callback=None):
         """
         Run the detection algorithm for one image and one combination only.
         The input folder should be the folder of the unzipped satellite image.
@@ -237,51 +240,30 @@ class DWWaterDetect:
                  config_file=config_file,
                  single_mode=True)
 
-        print('passou aqui')
+        return wd._detect_water(post_callback=post_callback)
 
-        for image in wd.loader:
-            wd.saver.set_output_folder(image.current_image_name, image.geo_transform, image.projection)
-            # if there is a shape_file specified, clip necessary bands and then update the output projection
-            if image.shape_file:
-                image.clip_bands(wd.necessary_bands(wd.config.create_composite), wd.config.reference_band,
-                                 wd.saver.temp_dir)
-                wd.saver.update_geo_transform(image.geo_transform, image.projection)
+    @classmethod
+    def run_batch(cls, input_folder, output_folder, shape_file=None, product='S2_THEIA',
+                  config_file=None, post_callback=None):
+        """
+        Run batch is intended for multi processing of various images and bands combinations.
+        It Loops through all unzipped images in input folder, extract water pixels and save results to output folder
+        ATT: The input folder is not a satellite image itself. It should be the parent folder containing all images.
+        For single detection, use run() method.
+        :return: None
+        """
+        wd = cls(input_folder=input_folder,
+                 output_folder=output_folder,
+                 shape_file=shape_file,
+                 product=product,
+                 config_file=config_file,
+                 single_mode=False)
 
-            image.load_raster_bands(wd.necessary_bands(include_rgb=False))
+        wd._detect_water(post_callback=post_callback)
 
-            # load the masks specified in the config (internal masks for theia or landsat) and the external tif mask
-            image.load_masks(wd.config.get_masks_list(image.product),
-                             wd.config.external_mask,
-                             wd.config.mask_name,
-                             wd.config.mask_valid_value,
-                             wd.config.mask_invalid_value)
+        return
 
-            # Test if there is enough valid pixels in the clipped images
-            if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > wd.config.maximum_invalid:
-                print('Not enough valid pixels in the image area')
-                continue
-
-            # calc the necessary indices and update the image's mask
-            wd.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=wd.config.save_indices)
-
-            # if the method is average_results, the loop through bands_combinations will be done in DWImage module
-            if wd.config.average_results:
-                print('Calculating water mask considering the average for these combinations:')
-                clustering_bands = wd.config.clustering_bands
-
-            else:
-                print('Calculating clusters for the following combination of bands:')
-                clustering_bands = wd.config.clustering_bands[0]
-
-            print(clustering_bands)
-            dw_image = wd.create_mask_report(image, clustering_bands, None, None,
-                                               None)
-
-        return dw_image
-
-
-
-    def run_batch(self, post_callback=None):
+    def _detect_water(self, post_callback=None):
         """
         Run batch is intended for multi processing of various images and bands combinations.
         It Loops through all unzipped images in input folder, extract water pixels and save results to output folder
@@ -337,27 +319,29 @@ class DWWaterDetect:
 
                 # if the method is average_results, the loop through bands_combinations will be done in DWImage module
                 if self.config.average_results:
+                    print('Calculating water mask considering the average of combinations.')
+                    clustering_bands = [self.config.clustering_bands]
 
-                    print('Calculating water mask considering the average for these combinations:')
-                    print(self.config.clustering_bands)
-
-                    dw_image = self.create_mask_report(image, self.config.clustering_bands, composite_name, pdf_merger,
-                                                       post_callback)
-
-                # Otherwise, loop through the bands combinations to make the clusters
                 else:
-                    for band_combination in self.config.clustering_bands:
-                        try:
-                            print('Calculating clusters for the following combination of bands:')
-                            print(band_combination)
+                    if self.single_mode:
+                        print('Calculating water mask in single mode. Just the first band_combination is processed')
+                        clustering_bands = [self.config.clustering_bands[0]]
+                    else:
+                        clustering_bands = self.config.clustering_bands
 
-                            dw_image = self.create_mask_report(image, band_combination, composite_name, pdf_merger,
-                                                               post_callback)
+                # loop through the bands combinations to make the clusters
+                for band_combination in clustering_bands:
+                    try:
+                        print('Calculating clusters for the following combination of bands:')
+                        print(band_combination)
 
-                        except Exception as err:
-                            print('**** ERROR DURING CLUSTERING ****')
-                            # todo: should we close the pdf merger in case of error?
-                            print(err)
+                        dw_image = self.create_mask_report(image, band_combination, composite_name, pdf_merger,
+                                                           post_callback)
+
+                    except Exception as err:
+                        print('**** ERROR DURING CLUSTERING ****')
+                        # todo: should we close the pdf merger in case of error?
+                        print(err)
 
             except Exception as err:
                 print('****** ERROR ********')
@@ -371,7 +355,7 @@ class DWWaterDetect:
 
             self.save_report(report_name, pdf_merger, self.saver.base_output_folder.joinpath(self.saver.area_name))
 
-        return
+        return dw_image
 
     def create_mask_report(self, image, band_combination, composite_name, pdf_merger, post_callback):
         # if pdf_reports, create a FileMerger for this specific band combination

@@ -72,14 +72,19 @@ class DWLoader:
 
     def __next__(self):
 
-        if self._index == len(self.images)-1:
-            raise StopIteration
+        while self._index < len(self.images)-1:
+            self._index += 1
 
-        self._index += 1
+            try:
+                self.open_current_image(self._ref_band_name)
+                return self
 
-        self.open_current_image(self._ref_band_name)
+            except Exception as err:
+                print('****** WARNING ********')
+                print(f'{err}. Skipping to the next image')
+                print('')
 
-        return self
+        raise StopIteration
 
     @property
     def product_dict(self):
@@ -147,7 +152,7 @@ class DWLoader:
         Retrieve the full path of bands saved for the current image, according to the product
         :return: Posix_path of bands files
         """
-        print('Retrieving bands for image: ' + self.current_image_folder.as_posix())
+        print(f'Retrieving bands for product {self.product}')
 
         # put the full path of the corresponding bands in a list
         bands = [file for file in self.bands_path.iterdir() if file.suffix == self.product_dict['suffix']
@@ -158,7 +163,8 @@ class DWLoader:
             for b in bands:
                 print(b.name)
         else:
-            raise OSError('No bands found in dir: ')
+            raise OSError(f'No bands found. {self.current_image_folder.as_posix()} is not a valid {self.product} '
+                          f'product')
 
         return bands
 
@@ -174,7 +180,7 @@ class DWLoader:
         self.raster_bands = {}
         self.invalid_mask = False
 
-        print('Opening image in loader')
+        print(f'Opening image in folder {self.current_image_folder}')
         bands_files = self.get_bands_files()
 
         for band_name in self.product_dict['bands_names']:
