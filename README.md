@@ -114,14 +114,14 @@ Once properly installed, the WaterDetect can be run from a console or a Jupyter 
 ```
 >>> import waterdetect as wd
 >>> !waterdetect -GC
->>> detector = wd.DWWaterDetect(input_folder='D:\Images\Input\',
-                            output_folder='D:\Images\Output',
-                            shape_file='D:\Shp\SomeShapefile.shp',
-                            product=wd.DWProducts.Sentinel2_THEIA,
-                            config_file='WaterDetect.ini'
-                           )
->>> wd.run_batch()
+>>> wd.DWWaterDetect.run_batch(input_folder='D:\Images\Input\',
+                               output_folder='D:\Images\Output',
+                               shape_file='D:\Shp\SomeShapefile.shp',
+                               product=wd.DWProducts.Sentinel2_THEIA,
+                               config_file='WaterDetect.ini'
+                              )
 ```
+For more information on how to use it from jupyter notebook, in batch or single mode or to use it with other satellite images or without GDAL, please refer to the <b>tutorial</b> available here https://towardsdatascience.com/water-detection-in-high-resolution-satellite-images-using-the-waterdetect-python-package-7c5a031e3d16.
 
 ## Contributors
 > Author: Maurício Cordeiro (ANA/GET)<br>
