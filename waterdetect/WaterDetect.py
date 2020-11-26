@@ -67,10 +67,10 @@ def main():
             print('Please specify input and output folders (-i, -o)')
 
         else:
-            water_detect = DWWaterDetect(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
-                                         product=args.product, config_file=args.config)
-            water_detect._detect_water()
+            DWWaterDetect.run_batch(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
+                                    product=args.product, config_file=args.config)
 
+    return
 
 # check if this file has been called as script
 if __name__ == '__main__':
@@ -95,6 +95,28 @@ class DWWaterDetect:
         self.single_mode = single_mode
 
         return
+
+    @property
+    def water_mask(self):
+        if hasattr(self, 'dw_image'):
+            return self.dw_image.water_mask
+        else:
+            return None
+
+    @property
+    def cluster_matrix(self):
+        if hasattr(self, 'dw_image'):
+            return self.dw_image.cluster_matrix
+        else:
+            return None
+
+    def __repr__(self):
+        if self.water_mask is not None:
+            return f'WaterDetect object with water mask and clustering results (use .water_mask ' \
+                   f'or .cluster_matrix to access them)'
+        else:
+            return f'WaterDetect object with {len(self.loader)} images to process. \n' \
+                   f'Input folder:{self.loader.input_folder}'
 
     def necessary_bands(self, include_rgb):
         """
@@ -226,7 +248,7 @@ class DWWaterDetect:
         return awei.filled()
 
     @classmethod
-    def run_single(cls, image_folder, temp_folder=None, shape_file=None, product='S2_THEIA', config_file=None,
+    def run_single(cls, image_folder, output_folder=None, shape_file=None, product='S2_THEIA', config_file=None,
                    post_callback=None):
         """
         Run the detection algorithm for one image and one combination only.
@@ -234,13 +256,15 @@ class DWWaterDetect:
         :return: instance of DWImageClustering  with mask and clustering results
         """
         wd = cls(input_folder=image_folder,
-                 output_folder=temp_folder,
+                 output_folder=output_folder,
                  shape_file=shape_file,
                  product=product,
                  config_file=config_file,
                  single_mode=True)
 
-        return wd._detect_water(post_callback=post_callback)
+        wd._detect_water(post_callback=post_callback)
+
+        return wd
 
     @classmethod
     def run_batch(cls, input_folder, output_folder, shape_file=None, product='S2_THEIA',
@@ -355,6 +379,7 @@ class DWWaterDetect:
 
             self.save_report(report_name, pdf_merger, self.saver.base_output_folder.joinpath(self.saver.area_name))
 
+        self.dw_image = dw_image
         return dw_image
 
     def create_mask_report(self, image, band_combination, composite_name, pdf_merger, post_callback):

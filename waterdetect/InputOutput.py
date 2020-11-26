@@ -66,6 +66,9 @@ class DWLoader:
 
         return
 
+    def __len__(self):
+        return len(self.images)
+
     def __iter__(self):
         self._index = -1
         return self
