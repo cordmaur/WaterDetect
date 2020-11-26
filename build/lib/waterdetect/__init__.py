@@ -22,4 +22,5 @@ except BaseException as error:
     gdal = None
 
 from waterdetect.Image import DWImageClustering
+from waterdetect.Common import DWutils, DWConfig
 

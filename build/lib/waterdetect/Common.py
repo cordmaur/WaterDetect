@@ -149,6 +149,10 @@ class DWConfig:
         return self._units[self.parameter]
 
     @property
+    def negative_values(self):
+        return self.get_option('Inversion', 'negative_values', evaluate=False)
+
+    @property
     def min_param_value(self):
         return self.get_option('Inversion', 'min_param_value', evaluate=True)
 
@@ -1002,34 +1006,50 @@ class DWutils:
         #os.remove(filename + '.pdf')
 
     @staticmethod
-    def remove_negatives(b1, b2, mask=None):
+    def remove_negatives(bands, mask=None, negative_values='mask'):
         """
         Remove negatives values of given arrays b1 and b2, except masked values.
 
-        :param b1: first array
-        :param b2: second array
+        :param bands: list of bands to be adjusted
         :param mask: initial mask
+        :param negative_values: mask - mask the negative values; # fixed - replace all negative values for 0.001;
+                shift - shift each band by its minimum value, so every band has only positive values;
+                shift_all - shift each band by the minimum value of all bands. All bands will be shifted up by the
+                same amount
         :return: nd arrays without negatives values
         """
 
-        if mask is not None:
-            min_cte = np.min([np.min(b1[~mask]), np.min(b2[~mask])])
+        # If bands is not a list, create e list from it
+        bands_list = bands if isinstance(bands, list) else [bands]
+
+        # Create an empty list for the results
+        results_list = []
+
+        if negative_values == 'mask':
+            for band in bands_list:
+                # update the given mask
+                mask[np.where(bands <= 0)] = 1
+                results_list.append(np.where(band <= 0, -9999, band))
+
+        elif negative_values == 'shift':
+            for band in bands_list:
+                # get the minimum value outside the mask (otherwise we could get -9999 for example)
+                min_cte = np.min(band[~mask])
+                min_cte = min_cte if min_cte < 0 else 0
+                results_list.append(bands - min_cte)
+
+        elif negative_values == 'shift_all':
+            min_cte = np.min([np.min(band) for band in bands_list])
+            min_cte = min_cte if min_cte < 0 else 0
+
+            results_list = [band - min_cte for band in bands_list]
+
         else:
-            min_cte = np.min([np.min(b1), np.min(b2)])
+            print(f'Warning: negative values method {negative_values} not supported. Assuming fixed method')
+            for band in bands_list:
+                results_list.append(np.where(band <= 0, 0.001, band))
 
-        if min_cte <= 0:
-            # test avec 0.001 puis 0.0001
-            # min_cte = - min_cte + 0.0001
-            # b1 = b1 + min_cte
-            # b2 = b2 + min_cte
-            min_cte = 0.001
-        else:
-            min_cte = 0
+        # if there is just one band, return just the array, and not a list
+        return results_list if len(results_list) > 1 else results_list[0]
 
-        b1 = np.where(b1 >= 0, b1, min_cte)
-        b2 = np.where(b2 >= 0, b2, min_cte)
 
-        b1 = np.ma.array(b1, mask=mask, fill_value=-9999).filled()
-        b2 = np.ma.array(b2, mask=mask, fill_value=-9999).filled()
-
-        return b1, b2

@@ -11,10 +11,7 @@ class DWImageClustering:
 
     def __init__(self, bands, bands_keys, invalid_mask, config: DWConfig):
 
-        self.bands, self.bands_keys, self.invalid_mask = self.check_necessary_bands(bands, bands_keys, invalid_mask)
-
         self.config = config
-
         self.data_as_columns = None
         self.clusters_labels = None
         self.clusters_params = None
@@ -22,13 +19,12 @@ class DWImageClustering:
         self.water_cluster = None
         self.water_mask = None
         self.best_k = None
-
         self._product_name = None
 
+        self.bands, self.bands_keys, self.invalid_mask = self.check_necessary_bands(bands, bands_keys, invalid_mask)
         return
 
-    @staticmethod
-    def check_necessary_bands(bands, bands_keys, invalid_mask):
+    def check_necessary_bands(self, bands, bands_keys, invalid_mask):
         """
         Check if the bands_keys combination for the clustering algorithm are available in bands
         and if they all have the same shape
@@ -54,8 +50,10 @@ class DWImageClustering:
         elif invalid_mask is None:
             invalid_mask = np.zeros(ref_shape, dtype=bool)
 
-        # check if the MNDWI index exist
-        if 'mndwi' not in bands.keys():
+        # check if the MNDWI index is necessary and if it exists
+        if (('mndwi' in DWutils.listify(bands_keys)) or (self.config.clustering_method=='maxmndwi')) and \
+                ('mndwi' not in bands.keys()):
+
             mndwi, mndwi_mask = DWutils.calc_normalized_difference(bands['Green'], bands['Mir2'], invalid_mask)
             invalid_mask |= mndwi_mask
             bands.update({'mndwi': mndwi})
@@ -265,7 +263,7 @@ class DWImageClustering:
                 param_list.append(clt['mean'][idx_band1] - clt['mean'][idx_band2])
 
             elif param == 'value':
-                if (clt['pixels'] > 5) and (clt['mean'][available_bands.index('Mir2')] < 0.25*4):
+                if (clt['pixels'] > 5): # and (clt['mean'][available_bands.index('Mir2')] < 0.25*4):
                     param_list.append(clt['mean'][idx_band1])
                 else:
                     param_list.append(-1)
@@ -379,7 +377,6 @@ class DWImageClustering:
             return 'not water'
 
         # return 'ambiguous'
-
 
     def create_matrice_cluster(self, indices_array):
         """
