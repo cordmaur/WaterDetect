@@ -375,7 +375,7 @@ class DWWaterDetect:
 
         # if there is a post processing callback, call it passing the mask and the pdf_merger_image
         if post_callback is not None:
-            post_callback(dw_image=dw_image, pdf_merger=pdf_merger_image)
+            post_callback(self, dw_image=dw_image, pdf_merger=pdf_merger_image)
 
         # save the graphs
         if self.config.plot_graphs:

@@ -1002,34 +1002,53 @@ class DWutils:
         #os.remove(filename + '.pdf')
 
     @staticmethod
-    def remove_negatives(b1, b2, mask=None):
+    def remove_negatives(bands, mask=None, per_band=True):
         """
         Remove negatives values of given arrays b1 and b2, except masked values.
 
-        :param b1: first array
-        :param b2: second array
+        :param bands: list of bands to be adjusted
         :param mask: initial mask
+        :param per_band: if True, the processing is made band by band. Otherwise, the minimum value is
+        calculated for all the bands
         :return: nd arrays without negatives values
         """
 
-        if mask is not None:
-            min_cte = np.min([np.min(b1[~mask]), np.min(b2[~mask])])
+        # If bands is not a list, create e list from it
+        bands_list = bands if isinstance(bands, list) else [bands]
+
+        # Create an empty list for the results
+        results_list = []
+
+        if per_band:
+            for band in bands_list:
+                new_band = np.ma.array(np.where(band >= 0, band, 0.001), mask=mask, fill_value=-9999).filled()
+                results_list.append(new_band)
         else:
-            min_cte = np.min([np.min(b1), np.min(b2)])
+            # todo: Is it necessary to implement overall adjustment???
+            pass
 
-        if min_cte <= 0:
-            # test avec 0.001 puis 0.0001
-            # min_cte = - min_cte + 0.0001
-            # b1 = b1 + min_cte
-            # b2 = b2 + min_cte
-            min_cte = 0.001
-        else:
-            min_cte = 0
+        # if there is just one band, return just the array, and not a list
+        return results_list if len(results_list) > 1 else results_list[0]
 
-        b1 = np.where(b1 >= 0, b1, min_cte)
-        b2 = np.where(b2 >= 0, b2, min_cte)
+        # if mask is not None:
+        #     min_cte = np.min([np.min(b1[~mask]), np.min(b2[~mask])])
+        # else:
+        #     min_cte = np.min([np.min(b1), np.min(b2)])
+        #
+        # if min_cte <= 0:
+        #     # test avec 0.001 puis 0.0001
+        #     # min_cte = - min_cte + 0.0001
+        #     # b1 = b1 + min_cte
+        #     # b2 = b2 + min_cte
+        #     min_cte = 0.001
+        # else:
+        #     min_cte = 0
+        #
+        # b1 = np.where(b1 >= 0, b1, min_cte)
+        # b2 = np.where(b2 >= 0, b2, min_cte)
+        #
+        # b1 = np.ma.array(b1, mask=mask, fill_value=-9999).filled()
+        # b2 = np.ma.array(b2, mask=mask, fill_value=-9999).filled()
 
-        b1 = np.ma.array(b1, mask=mask, fill_value=-9999).filled()
-        b2 = np.ma.array(b2, mask=mask, fill_value=-9999).filled()
+        # return b1, b2
 
-        return b1, b2
