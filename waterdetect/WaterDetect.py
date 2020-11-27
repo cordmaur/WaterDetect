@@ -468,7 +468,7 @@ class DWWaterDetect:
         and specular reflection directions
         Also, checks if there are reports, then add the risk of glint to it.
         """
-        xml = self.loader.current_image_folder.as_posix() + '/' + image.current_image_name + '_MTD_ALL.xml'
+        xml = self.loader.metadata
         # check the path of the metadata file
         DWutils.check_path(xml)
         # extract angles from the metadata and make the glint calculation from it
