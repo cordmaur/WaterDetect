@@ -159,13 +159,11 @@ class DWLoader:
         if self.product == 'S2_THEIA':
             xml = Path(self.images[self._index]).rglob("*MTD_ALL.xml")
             for x in xml:
-                return x
+                return str(x)
         elif 'S2_L1C' or 'S2_S2COR':
             xml = Path(self.images[self._index]).rglob("*MTD_TL.xml")
             for x in xml:
-                return x
-        else:
-            print("Cannot access metadata")
+                return str(x)
 
     def get_bands_files(self):
         """
