@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 
 from lxml import etree
 from PIL import Image, ImageDraw, ImageFont
+import re
 
 def test_ini():
     for attr in dir(DWProducts):
@@ -908,7 +909,6 @@ class DWutils:
 
         zenith_angle = root.xpath('//ZENITH_ANGLE[@unit="deg"]/text()')
         # zenith_angle[0] = sun_angle Mean_Viewing_Incidence_Angle_List for B2, B3....
-
         azimuth_angle = root.xpath('//AZIMUTH_ANGLE[@unit="deg"]/text()')
         # azimuth_angle[0] = sun_angle and then Mean_Viewing_Incidence_Angle_List for B2, B3....
 
@@ -935,7 +935,7 @@ class DWutils:
         return g
 
     @staticmethod
-    def create_glint_pdf(xml, current_imagename, output_folder, g, pdf_merger):
+    def create_glint_pdf(xml, name_img, output_folder, g, pdf_merger):
         """
         Function to create an image to add in the pdf report that indicates if there is glint on an image
 
@@ -950,15 +950,6 @@ class DWutils:
         pdf_merger: function to add an element to a pdf
 
         """
-        # getting current image name
-        namelist = current_imagename.split('-')[2].split('_')
-        for name in namelist:
-            # to extract tilename
-            if name.find('T') == 0:
-                indice = namelist.index(name)
-        # nameimg = Type of image, date and tilename
-        nameimg = current_imagename.split('-')[0] + '_' + namelist[indice]
-
         # create an image
         out = Image.new("RGB", (300, 50), (255, 255, 255))
         # get a drawing context
@@ -973,25 +964,25 @@ class DWutils:
         if min(g) < 20:
             print('GLINT SUR IMAGE ' + xml)
             # draw multiline text
-            d.multiline_text((5, 5), "GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None, spacing=0,
+            d.multiline_text((5, 5), "GLINT image \n" + name_img, fill=(0, 0, 0), font=font, anchor=None, spacing=0,
                              align="center")
         elif min(g) >= 20 and min(g) < 29:
             # values that may change
             print('MIGHT BE GLINT SUR IMAGE ' + xml)
             # draw multiline text
-            d.multiline_text((5, 5), "MIGHT BE GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+            d.multiline_text((5, 5), "MIGHT BE GLINT image \n" + name_img, fill=(0, 0, 0), font=font, anchor=None,
                              spacing=0, align="center")
         else:
             print("PAS DE GLINT SUR IMAGE " + xml)
             # draw multiline text
-            d.multiline_text((5, 5), "NO GLINT image \n" + nameimg, fill=(0, 0, 0), font=font, anchor=None,
+            d.multiline_text((5, 5), "NO GLINT image \n" + name_img, fill=(0, 0, 0), font=font, anchor=None,
                              spacing=0, align="center")
         print("---------------------------")
 
         # Printing details to obtain it in the log file when run on the cluster
 
         # name of the pdf image
-        nameimg = "Glint_" + nameimg
+        nameimg = "Glint_" + name_img
         # output filename
         filename = str(output_folder) + "\\" + nameimg
         # Save as pdf
@@ -1002,8 +993,6 @@ class DWutils:
             # Add to the main pdf
             pdf_merger.append(filename + '.pdf')
 
-        #os remove pdf
-        #os.remove(filename + '.pdf')
 
     @staticmethod
     def remove_negatives(bands, mask=None, negative_values='mask'):
