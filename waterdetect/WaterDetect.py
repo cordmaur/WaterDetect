@@ -72,10 +72,6 @@ def main():
 
     return
 
-# check if this file has been called as script
-if __name__ == '__main__':
-    main()
-
 
 class DWWaterDetect:
 
@@ -394,9 +390,7 @@ class DWWaterDetect:
         dw_image = self.create_water_mask(band_combination, pdf_merger_image)
 
         # calculate the sun glint rejection and add it to the pdf report
-        # TODO: Glint only works for S2_THEIA at the present
-        if image.product == 'S2_THEIA':
-            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+        self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
         # if there is a post processing callback, call it passing the mask and the pdf_merger_image
         if post_callback is not None:
@@ -468,7 +462,7 @@ class DWWaterDetect:
         and specular reflection directions
         Also, checks if there are reports, then add the risk of glint to it.
         """
-        xml = self.loader.metadata
+        xml = str(self.loader.metadata)
         # check the path of the metadata file
         DWutils.check_path(xml)
         # extract angles from the metadata and make the glint calculation from it
@@ -552,4 +546,8 @@ class DWWaterDetect:
         self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask', dtype=gdal.GDT_Byte)
 
         return
+
+# check if this file has been called as script
+if __name__ == '__main__':
+    main()
 

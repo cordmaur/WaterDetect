@@ -9,22 +9,25 @@ class DWLoader:
     satellite_Dict = {
         'S2_THEIA': {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
                                      'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5', 'RedEdg2': 'B6', 'RedEdg3': 'B7'},
-                     'suffix': '.tif', 'string': 'SRE'},
+                     'suffix': '.tif', 'string': 'SRE', 'metadata': '*MTD_ALL.xml', 'recursive': False},
 
-        'S2_S2COR': {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
-                                     'Nir': 'B08', 'Nir2': 'B8A'}},
+        'S2_S2COR': {'bands_names': {'Blue': 'B02_10m', 'Green': 'B03_10m', 'Red': 'B04_10m', 'Mir': 'B11_20m',
+                                     'Mir2': 'B12_20m', 'RedEdg1': 'B05_20m', 'RedEdg2': 'B06_20m',
+                                     'RedEdg3': 'B07_20m', 'Nir': 'B08_10m', 'Nir2': 'B8A_20m'},
+
+                     'suffix': '.jp2', 'string': '', 'metadata': '*MTD_TL.xml',
+                     'subdir': 'GRANULE/*/IMG_DATA', 'recursive': True},
 
         'L8_USGS': {'bands_names': {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}},
 
         'S2_L1C': {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
-                                     'Nir': 'B08', 'Nir2': 'B8A'},
-                   'suffix': '.jp2',
-                   'string': '',
-                   'subdir': 'GRANULE/*/IMG_DATA'},
+                                   'Nir': 'B08', 'Nir2': 'B8A', 'RedEdg1': 'B05', 'RedEdg2': 'B06', 'RedEdg3': 'B07'},
+                   'suffix': '.jp2', 'string': '', 'metadata': '*MTD_TL.xml',
+                   'subdir': 'GRANULE/*/IMG_DATA', 'recursive': False},
 
         'L8_L1C': {'bands_names': {'Aero': 'band1', 'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
                                    'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
-                   'suffix': '.tif', 'string': 'sr_band'}
+                   'suffix': '.tif', 'string': 'sr_band', 'recursive': False}
     }
 
     def __init__(self, input_folder, shape_file=None, product='S2_THEIA', ref_band='Red', single_mode=False):
@@ -153,17 +156,19 @@ class DWLoader:
     @property
     def metadata(self):
         """
-        Returns the full path folder of current (selected) image
-        :return: Posixpath of current image
+        Returns the full path folder of the image's metadata
+        :return: Posixpath of current image's metadata
         """
-        if self.product == 'S2_THEIA':
-            xml = Path(self.images[self._index]).rglob("*MTD_ALL.xml")
-            for x in xml:
-                return str(x)
-        elif 'S2_L1C' or 'S2_S2COR':
-            xml = Path(self.images[self._index]).rglob("*MTD_TL.xml")
-            for x in xml:
-                return str(x)
+        return next(self.current_image_folder.rglob(self.product_dict['metadata']))
+
+        # if self.product == 'S2_THEIA':
+        #     xml = Path(self.images[self._index]).rglob("*MTD_ALL.xml")
+        #     for x in xml:
+        #         return str(x)
+        # elif 'S2_L1C' or 'S2_S2COR':
+        #     xml = Path(self.images[self._index]).rglob("*MTD_TL.xml")
+        #     for x in xml:
+        #         return str(x)
 
     def get_bands_files(self):
         """
@@ -173,13 +178,16 @@ class DWLoader:
         print(f'Retrieving bands for product {self.product}')
 
         # put the full path of the corresponding bands in a list
-        bands = [file for file in self.bands_path.iterdir() if file.suffix == self.product_dict['suffix']
-                 and self.product_dict['string'] in file.stem]
+        if not self.product_dict['recursive']:
+            bands = [file for file in self.bands_path.iterdir() if file.suffix == self.product_dict['suffix']
+                     and self.product_dict['string'] in file.stem]
+        else:
+            bands = [file for file in self.bands_path.rglob(f"*{self.product_dict['suffix']}")]
 
         if bands:
-            print('The following bands were found:')
-            for b in bands:
-                print(b.name)
+            print(f'{len(bands)} were found:')
+            # for b in bands:
+            #     print(b.name)
         else:
             raise OSError(f'No bands found. {self.current_image_folder.as_posix()} is not a valid {self.product} '
                           f'product')
