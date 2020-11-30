@@ -984,7 +984,7 @@ class DWutils:
         # name of the pdf image
         nameimg = "Glint_" + name_img
         # output filename
-        filename = str(output_folder) + "\\" + nameimg
+        filename = os.path.join(output_folder, nameimg)
         # Save as pdf
         out.save(filename + '.pdf')
         out.close()
