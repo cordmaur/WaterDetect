@@ -150,6 +150,21 @@ class DWLoader:
 
         return bands_path
 
+    @property
+    def metadata(self):
+        """
+        Returns the full path folder of current (selected) image
+        :return: Posixpath of current image
+        """
+        if self.product == 'S2_THEIA':
+            xml = Path(self.images[self._index]).rglob("*MTD_ALL.xml")
+            for x in xml:
+                return str(x)
+        elif 'S2_L1C' or 'S2_S2COR':
+            xml = Path(self.images[self._index]).rglob("*MTD_TL.xml")
+            for x in xml:
+                return str(x)
+
     def get_bands_files(self):
         """
         Retrieve the full path of bands saved for the current image, according to the product
