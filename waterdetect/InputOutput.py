@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 from pathlib import Path
+import re
 from waterdetect.Common import DWutils
 from waterdetect import gdal, DWProducts
 
@@ -169,6 +170,23 @@ class DWLoader:
         #     xml = Path(self.images[self._index]).rglob("*MTD_TL.xml")
         #     for x in xml:
         #         return str(x)
+
+    @property
+    def glint_name(self):
+        """"
+        Name of the glint image for the report
+        """
+        namelist = self.current_image_name.split('_')
+        for name in namelist:
+            # to extract tilename
+            tile = re.search("^T[0-9]{2}[A-Z]{3}", name)
+            datefile = re.search("^[0-9]{8}", name)
+            if tile:
+                tilename = tile.group(0)
+            elif datefile:
+                date = datefile.group(0)
+        nameimg = namelist[0] + "_" + date + "_" + tilename
+        return nameimg
 
     def get_bands_files(self):
         """

@@ -468,7 +468,7 @@ class DWWaterDetect:
         # extract angles from the metadata and make the glint calculation from it
         glint = DWutils.extract_angles_from_xml(xml)
         # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
-        DWutils.create_glint_pdf(xml, image.current_image_name, output_folder, glint, pdf_merger_image)
+        DWutils.create_glint_pdf(xml, self.loader.glint_name, output_folder, glint, pdf_merger_image)
 
     def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
 
