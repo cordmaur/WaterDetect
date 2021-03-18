@@ -1,6 +1,6 @@
 from builtins import RuntimeError
 import setuptools
-
+import waterdetect
 short_description = 'WaterDetect generates open water cover mask for L2A Sentinel 2 imagery without any a priori knowledge on the scene.'\
                     ' It can also be used for Landsat 8 images and for other multispectral clustering/segmentation tasks.'
 
@@ -8,7 +8,7 @@ long_description = short_description
 
 setuptools.setup(
     name="waterdetect", # Replace with your own username
-    version="1.5.4",
+    version=waterdetect.__version__,
     author="Maurício Cordeiro",
     author_email="cordmaur@gmail.com",
     description=short_description,

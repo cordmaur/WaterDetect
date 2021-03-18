@@ -291,6 +291,8 @@ class DWConfig:
             section_name = 'LandsatMasks'
         elif product == 'S2_THEIA':
             section_name = 'TheiaMasks'
+        elif product == 'S2_S2COR':
+            section_name = 'S2CORMasks'
         else:
             section_name = None
 

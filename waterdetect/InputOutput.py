@@ -336,6 +336,10 @@ class DWLoader:
             mask_processor = DWLandsatMaskProcessor(self.current_image_folder, self.x_size, self.y_size,
                                                     self.shape_file, self.temp_dir)
 
+        elif self.product == 'S2_S2COR':
+            mask_processor = DWS2CORMaskProcessor(self.current_image_folder, self.x_size, self.y_size,
+                                                  self.shape_file, self.temp_dir)
+
         if mask_processor:
             self.update_mask(mask_processor.get_combined_masks(product_masks_list))
 
@@ -515,8 +519,6 @@ class DWSaver:
         return filename
 
 # -------------------------------------------------------------------------
-
-
     @property
     def area_name(self):
         if self._area_name:
@@ -532,6 +534,66 @@ class DWSaver:
             self._temp_dir.mkdir(exist_ok=True)
 
         return self._temp_dir
+
+
+class DWS2CORMaskProcessor:
+
+    Sen2CorMaskList = {'NO_DATA': 0,
+                       'SATURATED_OR_DEFECTIVE': 1,
+                       'DARK_AREA_PIXELS': 2,
+                       'CLOUD_SHADOWS': 3,
+                       'VEGETATION': 4,
+                       'NOT_VEGETATED': 5,
+                       'WATER': 6,
+                       'UNCLASSIFIED': 7,
+                       'CLOUD_MEDIUM_PROBABILITY': 8,
+                       'CLOUD_HIGH_PROBABILITY': 9,
+                       'THIN_CIRRUS': 10,
+                       'SNOW': 11
+                       }
+
+    def __init__(self, base_folder, x_size, y_size, shape_file=None, temp_dir=None):
+
+        self.x_size = x_size
+        self.y_size = y_size
+
+        self.masks_folder = base_folder
+
+        self.mask = self.open_mask(shape_file, temp_dir)
+
+    def open_mask(self, shape_file, temp_dir):
+
+        gdal_mask = self.open_gdal_masks(shape_file, temp_dir)
+
+        raster_mask = gdal_mask.ReadAsArray(buf_xsize=self.x_size, buf_ysize=self.y_size)
+
+        return raster_mask
+
+    def open_gdal_masks(self, shape_file, temp_dir):
+
+        mask_file = [file for file in self.masks_folder.rglob('*SCL_20m.jp2')][0]
+        gdal_mask = gdal.Open(mask_file.as_posix())
+
+        if shape_file:
+
+            opt = gdal.WarpOptions(cutlineDSName=shape_file, cropToCutline=True,
+                                   srcNodata=-9999, dstNodata=-9999, outputType=gdal.GDT_Int16)
+
+            dest_name = (temp_dir / 'qa_cliped').as_posix()
+            clipped_mask_ds = gdal.Warp(destNameOrDestDS=dest_name,
+                                        srcDSOrSrcDSTab=gdal_mask,
+                                        options=opt)
+            clipped_mask_ds.FlushCache()
+            gdal_mask = clipped_mask_ds
+
+        return gdal_mask
+
+    def get_combined_masks(self, masks_list):
+        combined_mask = np.zeros_like(self.mask).astype('bool')
+        for mask_key in masks_list:
+            combined_mask |= (self.mask == self.Sen2CorMaskList[mask_key.upper()])
+
+        return combined_mask
 
 
 class DWLandsatMaskProcessor:

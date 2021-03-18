@@ -1,6 +1,6 @@
 # #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+from waterdetect import __version__
 from waterdetect.InputOutput import DWSaver, DWLoader
 from waterdetect.Common import DWConfig, DWutils, gdal
 from waterdetect.Image import DWImageClustering
@@ -43,6 +43,7 @@ def main():
                         default='S2_THEIA', type=str)
     parser.add_argument('-c', '--config', help='Configuration .ini file. If not specified WaterDetect.ini '
                                                'from current dir and used as default', type=str)
+    parser.add_argument('-v', '--version', help='Displays current package version', action='store_true')
 
     # product type (theia, sen2cor, landsat, etc.)
     # optional shape file
@@ -61,6 +62,8 @@ def main():
         print(f'Copying {src} into current dir.')
         dst.write_text(src.read_text())
         print(f'WaterDetect.ini copied into {dst.parent}.')
+    elif args.version:
+        print(f'WaterDetect version: {__version__}')
 
     else:
         if (args.input is None) or (args.out is None):
@@ -543,9 +546,11 @@ class DWWaterDetect:
             self.calc_awei(raster_bands, save_index=save_index)
 
         # update the final mask
+        print('Saving final MASK')
         self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask', dtype=gdal.GDT_Byte)
 
         return
+
 
 # check if this file has been called as script
 if __name__ == '__main__':
