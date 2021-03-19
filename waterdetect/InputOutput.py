@@ -359,6 +359,8 @@ class DWLoader:
                         print('Using external mask. Invalid value = {}'.format(mask_invalid_value))
                         self.update_mask(mask_array == mask_invalid_value)
 
+            else:
+                print(f'Warning: External mask {mask_file} not found!')
 
         # if self.product == 'S2_THEIA':
         #     mask_folder = self.current_image()/'MASKS'

@@ -1,5 +1,5 @@
-numpy>=1.17
-scikit_learn>=0.23
+numpy>=1.14
+scikit_learn>=0.19
 matplotlib>=3.3
 PyPDF2>=1.26
-scikit-image>=0.16
+scikit-image>=0.13

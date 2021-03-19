@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn import cluster
 from sklearn import metrics
+from sklearn.metrics import calinski_harabaz_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
@@ -169,7 +170,7 @@ class DWImageClustering:
                 print('k={} :Silhouete index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
             else:
-                computed_metrics.append(metrics.calinski_harabasz_score(data, labels))
+                computed_metrics.append(calinski_harabaz_score(data, labels))
                 print('k={} :Calinski_harabaz index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
 

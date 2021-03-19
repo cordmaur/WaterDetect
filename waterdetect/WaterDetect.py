@@ -400,7 +400,7 @@ class DWWaterDetect:
         dw_image = self.create_water_mask(band_combination, pdf_merger_image)
 
         # calculate the sun glint rejection and add it to the pdf report
-        self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+        # self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
         # if there is a post processing callback, call it passing the mask and the pdf_merger_image
         if post_callback is not None:
