@@ -16,11 +16,12 @@ import matplotlib.pyplot as plt
 
 from lxml import etree
 from PIL import Image, ImageDraw, ImageFont
-import re
+
 
 def test_ini():
     for attr in dir(DWProducts):
         print(getattr(DWProducts, attr))
+
 
 class DWConfig:
 
@@ -108,6 +109,10 @@ class DWConfig:
     @property
     def pdf_reports(self):
         return self.get_option('General', 'pdf_reports', evaluate=True)
+
+    @property
+    def pdf_resolution(self):
+        return self.get_option('General', 'pdf_resolution', evaluate=True)
 
     @property
     def save_indices(self):
@@ -633,6 +638,19 @@ class DWutils:
         print('Saving image: ' + filename)
         return
 
+    @staticmethod
+    def tif_2_pdf(tif_file, resolution=600, scale=2000):
+        """Convert a TIF image into a PDF given a resolution"""
+
+        pdf_file = tif_file[:-4] + '.pdf'
+
+        print(f'Creating pdf file: {pdf_file}')
+        translate = f'gdal_translate -outsize {resolution} 0 -ot Byte -scale 0 {scale} -of pdf ' \
+                    + tif_file + ' ' + pdf_file
+        os.system(translate)
+
+        return pdf_file
+
     # -----------------------------------------------
     @staticmethod
     def array2multiband(filename, array, geo_transform, projection, nodatavalue=0, dtype=None):
@@ -768,7 +786,7 @@ class DWutils:
         return
 
     @staticmethod
-    def create_composite(bands, folder_name, pdf=True):
+    def create_composite(bands, folder_name, pdf=True, resolution=600):
 
         # copy the RGB clipped bands to output directory
 
@@ -782,8 +800,8 @@ class DWutils:
                   red_band + ' ' + green_band + ' ' + blue_band)
 
         if pdf:
-            cmd = 'gdal_translate -of pdf -ot Byte -scale 0 2000 -outsize 600 0 ' + composite_base_name + '.vrt ' \
-                  + composite_base_name + '.pdf'
+            cmd = f'gdal_translate -of pdf -ot Byte -scale 0 2000 -outsize {resolution} 0 ' \
+                  + composite_base_name + '.vrt ' + composite_base_name + '.pdf'
             os.system(cmd)
 
         return composite_base_name

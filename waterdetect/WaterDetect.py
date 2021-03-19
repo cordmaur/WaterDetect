@@ -315,13 +315,6 @@ class DWWaterDetect:
                                      self.saver.temp_dir)
                     self.saver.update_geo_transform(image.geo_transform, image.projection)
 
-                # create a composite R G B in the output folder
-                if self.config.create_composite or self.config.pdf_reports:
-                    composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
-                                                              self.config.pdf_reports)
-                else:
-                    composite_name = None
-
                 # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
                 image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
@@ -339,6 +332,19 @@ class DWWaterDetect:
 
                 # calc the necessary indices and update the image's mask
                 self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=self.config.save_indices)
+
+                # create a composite R G B in the output folder
+                if self.config.create_composite or self.config.pdf_reports:
+                    composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
+                                                              self.config.pdf_reports, self.config.pdf_resolution)
+
+                    invalid_mask_name = self.saver.output_folder/(image.current_image_name + '_invalid_mask.tif')
+                    invalid_mask_name = DWutils.tif_2_pdf(invalid_mask_name.as_posix(),
+                                                          resolution=self.config.pdf_resolution,
+                                                          scale=1)
+                else:
+                    composite_name = None
+                    invalid_mask_name = None
 
                 # if the method is average_results, the loop through bands_combinations will be done in DWImage module
                 if self.config.average_results:
@@ -358,8 +364,8 @@ class DWWaterDetect:
                         print('Calculating clusters for the following combination of bands:')
                         print(band_combination)
 
-                        dw_image = self.create_mask_report(image, band_combination, composite_name, pdf_merger,
-                                                           post_callback)
+                        dw_image = self.create_mask_report(image, band_combination, composite_name, invalid_mask_name,
+                                                           pdf_merger, post_callback)
 
                     except Exception as err:
                         print('**** ERROR DURING CLUSTERING ****')
@@ -381,11 +387,12 @@ class DWWaterDetect:
         self.dw_image = dw_image
         return dw_image
 
-    def create_mask_report(self, image, band_combination, composite_name, pdf_merger, post_callback):
+    def create_mask_report(self, image, band_combination, composite_name, invalid_mask_name, pdf_merger, post_callback):
         # if pdf_reports, create a FileMerger for this specific band combination
         if self.config.pdf_reports & (pdf_merger is not None):
             pdf_merger_image = PdfFileMerger()
             pdf_merger_image.append(composite_name + '.pdf')
+            pdf_merger_image.append(invalid_mask_name)
         else:
             pdf_merger_image = None
 
@@ -410,7 +417,8 @@ class DWWaterDetect:
         return dw_image
 
     # save the report and return the full path as posix
-    def save_report(self, report_name, pdf_merger, folder):
+    @staticmethod
+    def save_report(report_name, pdf_merger, folder):
 
         filename = folder.joinpath(report_name + '.pdf')
 
@@ -437,7 +445,7 @@ class DWWaterDetect:
 
         # create the clustering image
         dw_image = DWImageClustering(self.loader.raster_bands, band_combination,
-                                             self.loader.invalid_mask, self.config)
+                                     self.loader.invalid_mask, self.config)
         dw_image.run_detect_water()
 
         # save the water mask and the clustering results
@@ -515,11 +523,12 @@ class DWWaterDetect:
                                              name=product_name+'_rgb',
                                              opt_relative_path=opt_relative_path)
 
-        new_filename = filename[:-4] + '.pdf'
-        translate = 'gdal_translate -outsize 600 0 -ot Byte -scale 0 2000 -of pdf ' + filename + ' ' + new_filename
-        os.system(translate)
+        pdf_filename = DWutils.tif_2_pdf(filename, self.config.pdf_resolution)
 
-        return new_filename
+        # remove the RGB auxiliary tif (too big to be kept)
+        os.remove(filename)
+
+        return pdf_filename
 
     def calc_indexes(self, image, indexes_list, save_index=False):
 
