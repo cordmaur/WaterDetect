@@ -23,7 +23,7 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     entry_points={
-        'console_scripts': ['waterdetect=waterdetect.WaterDetect:main'],
+        'console_scripts': ['waterdetect=runWaterDetect:main'],
     },
     include_package_data=True,
     package_data={'waterdetect': ['WaterDetect.ini']},

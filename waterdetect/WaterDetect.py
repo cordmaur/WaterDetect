@@ -1,14 +1,12 @@
 # #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from waterdetect import __version__
 from waterdetect.InputOutput import DWSaver, DWLoader
 from waterdetect.Common import DWConfig, DWutils, gdal
 from waterdetect.Image import DWImageClustering
-from pathlib import Path
+from sklearn.metrics import accuracy_score, jaccard_similarity_score
 import numpy as np
 from PyPDF2 import PdfFileMerger
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
-import argparse
 import os
 
 
@@ -16,69 +14,9 @@ import os
 Author: Mauricio Cordeiro
 """
 
-
-def main():
-    """
-    The main function is just a wrapper to create a entry point script called waterdetect.
-    With the package installed you can just call waterdetect -h in the command prompt to see the options.
-    """
-    parser = argparse.ArgumentParser(description='The waterdetect is a high speed water detection algorithm for sate'
-                                                 'llite images. It will loop through all images available in the input '
-                                                 'folder and write results for every combination specified in the'
-                                                 ' .ini file to the output folder. It can also run for single images '
-                                                 'from Python console or Jupyter notebook. Refer to the online'
-                                                 'documentation ',
-                                     epilog="To copy the package's default .ini file into the current directory, type:"
-                                            ' `waterdetect -GC .` without other arguments and it will copy  '
-                                            'WaterDetect.ini into the current directory.')
-
-    parser.add_argument("-GC", "--GetConfig", help="Copy the WaterDetect.ini from the package into the current "
-                                                   "directory and skips the processing. Once copied you can edit the "
-                                                   ".ini file and launch the waterdetect without -c option.",
-                        action="store_true")
-    parser.add_argument("-i", "--input", help="The products input folder. Required.", required=False, type=str)
-    parser.add_argument("-o", "--out", help="Output directory. Required.", required=False, type=str)
-    parser.add_argument("-s", "--shp", help="SHP file. Optional.", type=str)
-    parser.add_argument("-p", "--product", help='The product to be processed (S2_THEIA, L8_USGS, S2_L1C or S2_S2COR)',
-                        default='S2_THEIA', type=str)
-    parser.add_argument('-c', '--config', help='Configuration .ini file. If not specified WaterDetect.ini '
-                                               'from current dir and used as default', type=str)
-    parser.add_argument('-v', '--version', help='Displays current package version', action='store_true')
-
-    # product type (theia, sen2cor, landsat, etc.)
-    # optional shape file
-    # generate graphics (boolean)
-    # name of config file with the bands-list for detecting, saving graphics, etc. If not specified, use default name
-    #   if clip MIR or not, number of pixels to plot in graph, number of clusters, max pixels to process, etc.
-    # name of the configuration .ini file (optional, default is WaterDetect.ini in the same folder
-
-    args = parser.parse_args()
-
-    # If GetConfig option, just copy the WaterDetect.ini to the current working directory
-    if args.GetConfig:
-        src = Path(__file__).parent/'WaterDetect.ini'
-        dst = Path(os.getcwd())/'WaterDetect.ini'
-
-        print(f'Copying {src} into current dir.')
-        dst.write_text(src.read_text())
-        print(f'WaterDetect.ini copied into {dst.parent}.')
-    elif args.version:
-        print(f'WaterDetect version: {__version__}')
-
-    else:
-        if (args.input is None) or (args.out is None):
-            print('Please specify input and output folders (-i, -o)')
-
-        else:
-            DWWaterDetect.run_batch(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
-                                    product=args.product, config_file=args.config)
-
-    return
-
-
 class DWWaterDetect:
 
-    def __init__(self, input_folder, output_folder, shape_file, product, config_file, single_mode=False):
+    def __init__(self, input_folder, output_folder, shape_file, product, config_file, pekel=None, single_mode=False):
 
         # Create the Configuration object.
         # It loads the configuration file (WaterDetect.ini) and holds all the defaults if missing parameters
@@ -92,6 +30,7 @@ class DWWaterDetect:
         self.saver = DWSaver(output_folder, product, self.loader.area_name)
 
         self.single_mode = single_mode
+        self.pekel = pekel
 
         return
 
@@ -267,7 +206,7 @@ class DWWaterDetect:
 
     @classmethod
     def run_batch(cls, input_folder, output_folder, shape_file=None, product='S2_THEIA',
-                  config_file=None, post_callback=None):
+                  config_file=None, pekel=None, post_callback=None):
         """
         Run batch is intended for multi processing of various images and bands combinations.
         It Loops through all unzipped images in input folder, extract water pixels and save results to output folder
@@ -280,6 +219,7 @@ class DWWaterDetect:
                  shape_file=shape_file,
                  product=product,
                  config_file=config_file,
+                 pekel=pekel,
                  single_mode=False)
 
         wd._detect_water(post_callback=post_callback)
@@ -387,6 +327,36 @@ class DWWaterDetect:
         self.dw_image = dw_image
         return dw_image
 
+    def test_pekel(self, image, dw_image, pdf_merger_image):
+
+        water_mask = dw_image.water_mask.copy()
+        pekel_mask = gdal.Open(self.pekel).ReadAsArray(buf_xsize=image.x_size,
+                                                       buf_ysize=image.y_size)
+
+        # join invalid mask with pekels invalid
+        invalid_mask = image.invalid_mask.astype('bool') | (pekel_mask == 255)
+
+        pekel_mask = pekel_mask[~invalid_mask]
+        water_mask = water_mask[~invalid_mask]
+
+        # accuracy_score(pekel_mask > pekel_threshold, water_mask == 1)
+        result = jaccard_similarity_score(pekel_mask > self.config.pekel_water, water_mask == 1) * 100
+
+        # save result to the pdf_merger
+        pdf_name = os.path.join(self.saver.output_folder, 'pekel_test.pdf')
+
+        # write the resulting text
+        if result > self.config.pekel_accuracy:
+            text = f'PEKEL TEST - OK \nAccuracy Threshold: {self.config.pekel_accuracy}%\nJaccard Index = {result:.3f}%'
+            color = (0, 0, 0)
+        else:
+            text = f'*** PEKEL TEST FAILED *** \nAccuracy Threshold: {self.config.pekel_accuracy}%\n' \
+                   f'Jaccard Index = {result:.3f}%'
+            color = (220, 0, 0)
+
+        pdf_merger_image.append(DWutils.write_pdf(pdf_name, text, size=(300, 100), position=(50, 15), font_color=color))
+        return result
+
     def create_mask_report(self, image, band_combination, composite_name, invalid_mask_name, pdf_merger, post_callback):
         # if pdf_reports, create a FileMerger for this specific band combination
         if self.config.pdf_reports & (pdf_merger is not None):
@@ -399,12 +369,16 @@ class DWWaterDetect:
         # create a dw_image object with the water mask and all the results
         dw_image = self.create_water_mask(band_combination, pdf_merger_image)
 
-        # calculate the sun glint rejection and add it to the pdf report
-        # self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
-
         # if there is a post processing callback, call it passing the mask and the pdf_merger_image
         if post_callback is not None:
             post_callback(self, dw_image=dw_image, pdf_merger=pdf_merger_image)
+
+        # calculate the sun glint rejection and add it to the pdf report
+        # self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+
+        # Check the discrepancy of the water mask and pekel occurrence
+        if self.pekel:
+            self.test_pekel(image, dw_image, pdf_merger_image)
 
         # save the graphs
         if self.config.plot_graphs:
@@ -478,6 +452,7 @@ class DWWaterDetect:
         DWutils.check_path(xml)
         # extract angles from the metadata and make the glint calculation from it
         glint = DWutils.extract_angles_from_xml(xml)
+
         # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
         DWutils.create_glint_pdf(xml, self.loader.glint_name, output_folder, glint, pdf_merger_image)
 
@@ -559,9 +534,3 @@ class DWWaterDetect:
         self.saver.save_array(image.invalid_mask, image.current_image_name + '_invalid_mask', dtype=gdal.GDT_Byte)
 
         return
-
-
-# check if this file has been called as script
-if __name__ == '__main__':
-    main()
-

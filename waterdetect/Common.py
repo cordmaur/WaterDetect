@@ -115,6 +115,14 @@ class DWConfig:
         return self.get_option('General', 'pdf_resolution', evaluate=True)
 
     @property
+    def pekel_water(self):
+        return self.get_option('General', 'pekel_water', evaluate=True)
+
+    @property
+    def pekel_accuracy(self):
+        return self.get_option('General', 'pekel_accuracy', evaluate=True)
+
+    @property
     def save_indices(self):
         return self.get_option('General', 'save_indices', evaluate=True)
 
@@ -895,7 +903,6 @@ class DWutils:
 
         return gdal_mask
 
-#------------------
     @staticmethod
     def extract_angles_from_xml(xml):
         """
@@ -955,6 +962,18 @@ class DWutils:
         return g
 
     @staticmethod
+    def write_pdf(filename, text, size=(300, 50), position=(5, 5), font_color=(0, 0, 0)):
+        out = Image.new("RGB", size, (255, 255, 255))
+        draw = ImageDraw.Draw(out)
+
+        draw.multiline_text(position, text, fill=font_color, anchor=None, spacing=10, align="center")
+
+        out.save(filename)
+        out.close()
+
+        return filename
+
+    @staticmethod
     def create_glint_pdf(xml, name_img, output_folder, g, pdf_merger):
         """
         Function to create an image to add in the pdf report that indicates if there is glint on an image
@@ -1012,7 +1031,6 @@ class DWutils:
         if pdf_merger:
             # Add to the main pdf
             pdf_merger.append(filename + '.pdf')
-
 
     @staticmethod
     def remove_negatives(bands, mask=None, negative_values='mask'):
