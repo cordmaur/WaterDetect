@@ -9,10 +9,10 @@ from PyPDF2 import PdfFileMerger
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
 import os
 
-
 """
 Author: Mauricio Cordeiro
 """
+
 
 class DWWaterDetect:
 
@@ -278,13 +278,8 @@ class DWWaterDetect:
                     composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
                                                               self.config.pdf_reports, self.config.pdf_resolution)
 
-                    invalid_mask_name = self.saver.output_folder/(image.current_image_name + '_invalid_mask.tif')
-                    invalid_mask_name = DWutils.tif_2_pdf(invalid_mask_name.as_posix(),
-                                                          resolution=self.config.pdf_resolution,
-                                                          scale=1)
                 else:
                     composite_name = None
-                    invalid_mask_name = None
 
                 # if the method is average_results, the loop through bands_combinations will be done in DWImage module
                 if self.config.average_results:
@@ -304,7 +299,7 @@ class DWWaterDetect:
                         print('Calculating clusters for the following combination of bands:')
                         print(band_combination)
 
-                        dw_image = self.create_mask_report(image, band_combination, composite_name, invalid_mask_name,
+                        dw_image = self.create_mask_report(image, band_combination, composite_name,
                                                            pdf_merger, post_callback)
 
                     except Exception as err:
@@ -357,12 +352,12 @@ class DWWaterDetect:
         pdf_merger_image.append(DWutils.write_pdf(pdf_name, text, size=(300, 100), position=(50, 15), font_color=color))
         return result
 
-    def create_mask_report(self, image, band_combination, composite_name, invalid_mask_name, pdf_merger, post_callback):
+    def create_mask_report(self, image, band_combination, composite_name, pdf_merger, post_callback):
         # if pdf_reports, create a FileMerger for this specific band combination
         if self.config.pdf_reports & (pdf_merger is not None):
             pdf_merger_image = PdfFileMerger()
             pdf_merger_image.append(composite_name + '.pdf')
-            pdf_merger_image.append(invalid_mask_name)
+            # pdf_merger_image.append(invalid_mask_name)
         else:
             pdf_merger_image = None
 
@@ -433,11 +428,20 @@ class DWWaterDetect:
         # and append it to the image merger
         if pdf_merger_image:
             pdf_merger_image.append(self.create_rgb_burn_in_pdf(dw_image.product_name + '_water_mask',
-                                                                burn_in_array=dw_image.water_mask,
-                                                                color=(0, 0, 1),
+                                                                burn_in_arrays=dw_image.water_mask,
+                                                                colors=(0, 0, 1),
                                                                 fade=1,
                                                                 opt_relative_path=dw_image.product_name,
                                                                 valid_value=1))
+
+            pdf_merger_image.append(self.create_rgb_burn_in_pdf(dw_image.product_name + '_overlay',
+                                                                burn_in_arrays=[dw_image.water_mask,
+                                                                                self.loader.invalid_mask],
+                                                                colors=[(0, 0, 1), (1, 0, 0)],
+                                                                fade=1,
+                                                                opt_relative_path=dw_image.product_name,
+                                                                valid_value=1,
+                                                                transps=[0, 0.7]))
 
         return dw_image
 
@@ -473,23 +477,48 @@ class DWWaterDetect:
 
         return filename.as_posix()
 
-    def create_rgb_burn_in_pdf(self, product_name, burn_in_array, color=None, min_value=None, max_value=None,
+    def create_rgb_burn_in_pdf(self, product_name, burn_in_arrays, colors=None, min_value=None, max_value=None,
                                fade=None, opt_relative_path=None, colormap='viridis', uniform_distribution=False,
-                               no_data_value=0, valid_value=1):
+                               no_data_value=0, valid_value=1, transps=None, bright=5.):
 
-        # create the RGB burn in image
-        red, green, blue = DWutils.rgb_burn_in(red=self.loader.raster_bands['Red'],
-                                               green=self.loader.raster_bands['Green'],
-                                               blue=self.loader.raster_bands['Blue'],
-                                               burn_in_array=burn_in_array,
-                                               color=color,
-                                               min_value=min_value,
-                                               max_value=max_value,
-                                               colormap=colormap,
-                                               fade=fade,
-                                               uniform_distribution=False,
-                                               no_data_value=no_data_value,
-                                               valid_value=valid_value)
+        red = self.loader.raster_bands['Red']*bright
+        green = self.loader.raster_bands['Green']*bright
+        blue = self.loader.raster_bands['Blue']*bright
+
+        # limit the maximum brightness to 1
+        red[red > 1] = 1
+        green[green > 1] = 1
+        blue[blue > 1] = 1
+
+        if isinstance(burn_in_arrays, list):
+            for burn_in_array, color, transp in zip(burn_in_arrays, colors, transps):
+                red, green, blue = DWutils.rgb_burn_in(red=red,
+                                                       green=green,
+                                                       blue=blue,
+                                                       burn_in_array=burn_in_array,
+                                                       color=color,
+                                                       min_value=min_value,
+                                                       max_value=max_value,
+                                                       colormap=colormap,
+                                                       fade=fade,
+                                                       uniform_distribution=uniform_distribution,
+                                                       no_data_value=no_data_value,
+                                                       valid_value=valid_value,
+                                                       transp=transp)
+        else:
+            # create the RGB burn in image
+            red, green, blue = DWutils.rgb_burn_in(red=red,
+                                                   green=green,
+                                                   blue=blue,
+                                                   burn_in_array=burn_in_arrays,
+                                                   color=colors,
+                                                   min_value=min_value,
+                                                   max_value=max_value,
+                                                   colormap=colormap,
+                                                   fade=fade,
+                                                   uniform_distribution=uniform_distribution,
+                                                   no_data_value=no_data_value,
+                                                   valid_value=valid_value)
 
         # save the RGB auxiliary tif and gets the full path filename
         filename = self.saver.save_rgb_array(red=red * 10000,
@@ -498,7 +527,7 @@ class DWWaterDetect:
                                              name=product_name+'_rgb',
                                              opt_relative_path=opt_relative_path)
 
-        pdf_filename = DWutils.tif_2_pdf(filename, self.config.pdf_resolution)
+        pdf_filename = DWutils.tif_2_pdf(filename, self.config.pdf_resolution, scale=10000)
 
         # remove the RGB auxiliary tif (too big to be kept)
         os.remove(filename)

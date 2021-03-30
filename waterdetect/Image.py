@@ -643,6 +643,7 @@ class DWImageClustering:
             self.clusters_labels = train_clusters_labels
 
         # after obtaining the final labels, clip bands with superior limit
+
         for band, value in zip(self.config.clip_band, self.config.clip_sup_value):
             if value is not None:
                 self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &

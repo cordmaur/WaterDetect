@@ -420,7 +420,7 @@ class DWutils:
 
     @staticmethod
     def rgb_burn_in(red, green, blue, burn_in_array, color=None, min_value=None, max_value=None, colormap='viridis',
-                    fade=1, uniform_distribution=False, no_data_value=-9999, valid_value=1):
+                    fade=1, uniform_distribution=False, no_data_value=-9999, valid_value=1, transp=0.0):
         """
         Burn in a mask or a specific parameter into an RGB image for visualization purposes.
         The burn_in_array will be copied where values are different from no_data_value.
@@ -435,13 +435,14 @@ class DWutils:
         :param no_data_value: Value to ne unconsidered
         :param color: Tuple of color (R, G, B) to be used in the burn in
         :param fade: Fade the RGB bands to emphasize the copied values
+        :param transp: Transparency to use in the mask (0=opaque 1=completely transparent)
         :return: RGB image bands
         """
 
         if color:
-            new_red = np.where(burn_in_array == valid_value, color[0], red*fade)
-            new_green = np.where(burn_in_array == valid_value, color[1], green*fade)
-            new_blue = np.where(burn_in_array == valid_value, color[2], blue*fade)
+            new_red = np.where(burn_in_array == valid_value, color[0] * (1 - transp) + red * (transp), red * fade)
+            new_green = np.where(burn_in_array == valid_value, color[1] * (1 - transp) + green * (transp), green * fade)
+            new_blue = np.where(burn_in_array == valid_value, color[2] * (1 - transp) + blue * (transp), blue * fade)
 
         else:
             # the mask is where the value equals no_data_value
