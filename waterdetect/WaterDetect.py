@@ -369,7 +369,8 @@ class DWWaterDetect:
             post_callback(self, dw_image=dw_image, pdf_merger=pdf_merger_image)
 
         # calculate the sun glint rejection and add it to the pdf report
-        # self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+        if self.config.calc_glint:
+            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
         # Check the discrepancy of the water mask and pekel occurrence
         if self.pekel:

@@ -45,7 +45,8 @@ class DWConfig:
                  'detectwatercluster': 'maxmndwi',
                  'clustering_bands': "[['ndwi', 'Nir']]",
                  'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]",
-                 'plot_ts': 'False'
+                 'plot_ts': 'False',
+                 'calc_glint': 'True'
                  }
 
     _units = {'turb-dogliotti': 'FNU',
@@ -109,6 +110,10 @@ class DWConfig:
     @property
     def pdf_reports(self):
         return self.get_option('General', 'pdf_reports', evaluate=True)
+
+    @property
+    def calc_glint(self):
+        return self.get_option('General', 'calc_glint', evaluate=True)
 
     @property
     def pdf_resolution(self):
@@ -371,33 +376,47 @@ class DWutils:
         return [i for i in input_folder.iterdir() if i.is_dir()]
 
     @staticmethod
-    def calc_normalized_difference(img1, img2, mask=None):
+    def calc_normalized_difference(img1, img2, mask=None, compress_cte=0.02):
         """
         Calc the normalized difference of given arrays (img1 - img2)/(img1 + img2).
         Updates the mask if any invalid numbers (ex. np.inf or np.nan) are encountered
         :param img1: first array
         :param img2: second array
         :param mask: initial mask, that will be updated
+        :param compress_cte: amount of index compression. The greater, the more the index will be compressed towards 0
         :return: nd array filled with -9999 in the mask and the mask itself
         """
 
         # changement for negative SRE scenes
-        if mask is not None:
-            min_cte = np.min([np.min(img1[~mask]), np.min(img2[~mask])])
-        else:
-            min_cte = np.min([np.min(img1), np.min(img2)])
+        # ##### UPDATED ON 01/04/2021
 
-        if min_cte <= 0:
-            min_cte = -min_cte + 0.001
-        else:
-            min_cte = 0
+        # create a minimum array
+        min_values = np.where(img1 < img2, img1, img2)
 
-        nd = ((img1+min_cte)-(img2+min_cte)) / ((img1+min_cte) + (img2+min_cte))
+        # then create the to_add matrix (min values turned into positive + epsilon)
+        min_values = np.where(min_values <= 0, -min_values + 0.001, 0) + compress_cte
+
+        nd = ((img1 + min_values) - (img2 + min_values)) / ((img1 + min_values) + (img2 + min_values))
+
+        # # VERSION WITH JUST 1 CONSTANT
+        # if mask is not None:
+        #     min_cte = np.min([np.min(img1[~mask]), np.min(img2[~mask])])
+        # else:
+        #     min_cte = np.min([np.min(img1), np.min(img2)])
+        #
+        # print(f'Correcting negative values by {min_cte}')
+        #
+        # if min_cte <= 0:
+        #     min_cte = -min_cte + 0.001
+        # else:
+        #     min_cte = 0
+        #
+        # nd = ((img1+min_cte)-(img2+min_cte)) / ((img1+min_cte) + (img2+min_cte))
 
         # if any of the bands is set to zero in the pixel, makes a small shift upwards, as proposed by olivier hagole
         # https://github.com/olivierhagolle/modified_NDVI
         # nd = np.where((img1 > 0) & (img2 > 0), (img1-img2) / (img1 + img2), np.nan)
-                      # (img1+0.005-img2-0.005) / (img1+0.005 + img2+0.005))
+        # (img1+0.005-img2-0.005) / (img1+0.005 + img2+0.005))
 
         # nd = np.where((img1 <= 0) & (img2 <= 0), np.nan, (img1-img2) / (img1 + img2))
 
@@ -412,7 +431,7 @@ class DWutils:
         nd[np.isinf(nd)] = 1
 
         # nd_mask = np.isinf(nd) | np.isnan(nd) | mask
-        nd_mask = np.isnan(nd) | mask
+        nd_mask = np.isnan(nd) | (mask if mask is not None else False)
 
         nd = np.ma.array(nd, mask=nd_mask, fill_value=-9999)
 
@@ -995,7 +1014,7 @@ class DWutils:
         # get a drawing context
         d = ImageDraw.Draw(out)
         # font size
-        font = ImageFont.truetype("arial.ttf", 16)
+        font = ImageFont.truetype("DejaVuSans.ttf", 16)
 
         # Test about glint values
         print("---------------------------")
