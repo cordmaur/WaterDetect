@@ -216,6 +216,10 @@ class DWConfig:
         return self.get_option('Clustering', 'train_size', evaluate=True)
 
     @property
+    def regularization(self):
+        return self.get_option('Clustering', 'regularization', evaluate=True)
+
+    @property
     def min_train_size(self):
         return self.get_option('Clustering', 'min_train_size',evaluate=True)
 
@@ -959,10 +963,11 @@ class DWutils:
         azimuth_angle = root.xpath('//AZIMUTH_ANGLE[@unit="deg"]/text()')
         # azimuth_angle[0] = sun_angle and then Mean_Viewing_Incidence_Angle_List for B2, B3....
 
+        # the first values in the list correspond to the sun angle
         SZA = np.deg2rad(float(zenith_angle[0])) #radian
         SazA = float(azimuth_angle[0])
 
-        # Remove first element for both lists
+        # Remove sun angles (first element) from both lists
         zenith_angle.pop(0)
         azimuth_angle.pop(0)
 

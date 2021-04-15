@@ -1,9 +1,9 @@
 # #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from waterdetect.InputOutput import DWSaver, DWLoader
-from waterdetect.Common import DWConfig, DWutils, gdal
+from waterdetect.Common import DWConfig, DWutils
 from waterdetect.Image import DWImageClustering
-from sklearn.metrics import accuracy_score, jaccard_similarity_score
+from waterdetect import jaccard_score, gdal
 import numpy as np
 from PyPDF2 import PdfFileMerger
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
@@ -86,7 +86,8 @@ class DWWaterDetect:
         :return: index array
         """
 
-        index, mask = DWutils.calc_normalized_difference(band1, band2, self.loader.invalid_mask)
+        index, mask = DWutils.calc_normalized_difference(band1, band2, self.loader.invalid_mask,
+                                                         compress_cte=self.config.regularization)
         self.loader.update_mask(mask)
 
         self.loader.raster_bands.update({index_name: index})
@@ -335,7 +336,7 @@ class DWWaterDetect:
         water_mask = water_mask[~invalid_mask]
 
         # accuracy_score(pekel_mask > pekel_threshold, water_mask == 1)
-        result = jaccard_similarity_score(pekel_mask > self.config.pekel_water, water_mask == 1) * 100
+        result = jaccard_score(pekel_mask > self.config.pekel_water, water_mask == 1) * 100
 
         # save result to the pdf_merger
         pdf_name = os.path.join(self.saver.output_folder, 'pekel_test.pdf')
@@ -361,16 +362,17 @@ class DWWaterDetect:
         else:
             pdf_merger_image = None
 
+        # calculate the sun glint rejection and add it to the pdf report
+        # the glint will be passed to the
+        if self.config.calc_glint:
+            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+
         # create a dw_image object with the water mask and all the results
         dw_image = self.create_water_mask(band_combination, pdf_merger_image)
 
         # if there is a post processing callback, call it passing the mask and the pdf_merger_image
         if post_callback is not None:
             post_callback(self, dw_image=dw_image, pdf_merger=pdf_merger_image)
-
-        # calculate the sun glint rejection and add it to the pdf report
-        if self.config.calc_glint:
-            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
         # Check the discrepancy of the water mask and pekel occurrence
         if self.pekel:
@@ -412,7 +414,6 @@ class DWWaterDetect:
                             graph_basename, graph_title, self.loader.invalid_mask, 1000, pdf_merger_image)
 
     def create_water_mask(self, band_combination, pdf_merger_image):
-
         # create the clustering image
         dw_image = DWImageClustering(self.loader.raster_bands, band_combination,
                                      self.loader.invalid_mask, self.config)
@@ -425,7 +426,8 @@ class DWWaterDetect:
                               opt_relative_path=dw_image.product_name, dtype=gdal.GDT_Byte)
         # unload bands
 
-        # if there is a pdf to create, burn-in the mask into the RGB composite
+        # if there is a pdf to create, burn-in the mask into the RGB composit
+        # e
         # and append it to the image merger
         if pdf_merger_image:
             pdf_merger_image.append(self.create_rgb_burn_in_pdf(dw_image.product_name + '_water_mask',

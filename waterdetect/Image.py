@@ -1,11 +1,11 @@
 import numpy as np
 from sklearn import cluster
 from sklearn import metrics
-from sklearn.metrics import calinski_harabaz_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
 from waterdetect.Common import DWConfig, DWutils
+from waterdetect import calinski_harabasz_score
 
 
 class DWImageClustering:
@@ -133,7 +133,7 @@ class DWImageClustering:
             cluster_model = cluster.AgglomerativeClustering(n_clusters=self.best_k, linkage=self.config.linkage)
 
         cluster_model.fit(data)
-        return cluster_model.labels_
+        return cluster_model.labels_.astype('int8')
 
     def find_best_k(self, data):
         """
@@ -170,7 +170,7 @@ class DWImageClustering:
                 print('k={} :Silhouete index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
             else:
-                computed_metrics.append(calinski_harabaz_score(data, labels))
+                computed_metrics.append(calinski_harabasz_score(data, labels))
                 print('k={} :Calinski_harabaz index={}'.format(num_k, computed_metrics[num_k - min_k]))
 
 
@@ -296,7 +296,7 @@ class DWImageClustering:
         else:
             clusters_labels = self.apply_naive_bayes(data, clusters_labels, train_data)
 
-        return clusters_labels
+        return clusters_labels.astype('int8')
 
     @staticmethod
     def apply_svm(data, clusters_labels, clusters_data):
@@ -391,7 +391,7 @@ class DWImageClustering:
         # todo: treat no_data value of -9999
 
         # create an empty matrix
-        matrice_cluster = np.zeros_like(list(self.bands.values())[0])
+        matrice_cluster = np.zeros_like(list(self.bands.values())[0]).astype('int8')
 
         # apply water pixels to value 1
         matrice_cluster[indices_array[0][self.clusters_labels == self.water_cluster['clusterid']],
@@ -581,7 +581,7 @@ class DWImageClustering:
             self.cluster_matrix = self.apply_clustering()
 
         # self.water_mask = self.cluster_matrix == 1
-        self.water_mask = np.where(self.cluster_matrix == 1, 1, np.where(self.invalid_mask == 1, 255, 0))
+        self.water_mask = np.where(self.cluster_matrix == 1, 1, np.where(self.invalid_mask == 1, 255, 0)).astype('int8')
 
         return self.cluster_matrix
 

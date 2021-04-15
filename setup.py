@@ -26,10 +26,10 @@ setuptools.setup(
         'console_scripts': ['waterdetect=runWaterDetect:main'],
     },
     include_package_data=True,
-    package_data={'waterdetect': ['WaterDetect.ini']},
+    package_data={'waterdetect': ['../WaterDetect.ini', '../runWaterDetect.py']},
     install_requires=[
         'numpy>=1.17',
-        'scikit_learn>=0.23',
+        'scikit_learn>=0.19',
         'matplotlib>=3.3',
         'PyPDF2>=1.26',
         'lxml>=4.5.0',

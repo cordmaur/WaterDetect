@@ -1,10 +1,9 @@
 # #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from waterdetect import __version__
-from pathlib import Path
-from waterdetect.WaterDetect import DWWaterDetect
-import argparse
 import os
+from pathlib import Path
+import argparse
+import waterdetect
 
 """
 Author: Mauricio Cordeiro
@@ -60,7 +59,7 @@ def main():
         dst.write_text(src.read_text())
         print(f'WaterDetect.ini copied into {dst.parent}.')
     elif args.version:
-        print(f'WaterDetect version: {__version__}')
+        print(f'WaterDetect version: {waterdetect.__version__}')
 
     elif args.debug:
         debug(args)
@@ -70,8 +69,8 @@ def main():
             print('Please specify input and output folders (-i, -o)')
 
         else:
-            DWWaterDetect.run_batch(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
-                                    product=args.product, config_file=args.config, pekel=args.pekel)
+            waterdetect.DWWaterDetect.run_batch(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
+                                                product=args.product, config_file=args.config, pekel=args.pekel)
 
     return
 

@@ -6,6 +6,7 @@ import re
 from waterdetect.Common import DWutils
 from waterdetect import gdal, DWProducts
 
+
 class DWLoader:
     satellite_Dict = {
         'S2_THEIA': {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
