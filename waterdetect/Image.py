@@ -10,8 +10,9 @@ from waterdetect import calinski_harabasz_score
 
 class DWImageClustering:
 
-    def __init__(self, bands, bands_keys, invalid_mask, config: DWConfig):
+    def __init__(self, bands, bands_keys, invalid_mask, glint_processor, config: DWConfig):
 
+        self.glint_processor = glint_processor
         self.config = config
         self.data_as_columns = None
         self.clusters_labels = None
@@ -648,14 +649,30 @@ class DWImageClustering:
 
         for band, value in zip(self.config.clip_band, self.config.clip_sup_value):
             if value is not None:
+                if self.config.glint_mode:
+                    comp_array = self.glint_processor.glint_adjusted_threshold(band,
+                                                                               value,
+                                                                               'SUP',
+                                                                               self.invalid_mask)
+                else:
+                    comp_array = value
+
                 self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &
-                                     (self.bands[band][~self.invalid_mask] > value)] = -1
+                                     (self.bands[band][~self.invalid_mask] > comp_array)] = -1
 
         # after obtaining the final labels, clip bands with inferior limit
         for band, value in zip(self.config.clip_band, self.config.clip_inf_value):
             if value is not None:
+                if self.config.glint_mode:
+                    comp_array = self.glint_processor.glint_adjusted_threshold(band,
+                                                                               value,
+                                                                               'INF',
+                                                                               self.invalid_mask)
+                else:
+                    comp_array = value
+
                 self.clusters_labels[(self.clusters_labels == self.water_cluster['clusterid']) &
-                                     (self.bands[band][~self.invalid_mask] < value)] = -1
+                                     (self.bands[band][~self.invalid_mask] < comp_array)] = -1
 
         # create an cluster array based on the cluster result (water will be value 1)
         return self.create_matrice_cluster(ind_data)

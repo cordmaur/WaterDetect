@@ -3,6 +3,7 @@
 from waterdetect.InputOutput import DWSaver, DWLoader
 from waterdetect.Common import DWConfig, DWutils
 from waterdetect.Image import DWImageClustering
+from waterdetect.Glint import DWGlintProcessor
 from waterdetect import jaccard_score, gdal
 import numpy as np
 from PyPDF2 import PdfFileMerger
@@ -365,10 +366,15 @@ class DWWaterDetect:
         # calculate the sun glint rejection and add it to the pdf report
         # the glint will be passed to the
         if self.config.calc_glint:
-            self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
+            glint_processor = DWGlintProcessor(image)
+            pdf_merger_image.append(glint_processor.save_heatmap(self.saver.output_folder))
+
+        else:
+            glint_processor = None
+            # self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
         # create a dw_image object with the water mask and all the results
-        dw_image = self.create_water_mask(band_combination, pdf_merger_image)
+        dw_image = self.create_water_mask(band_combination, pdf_merger_image, glint_processor=glint_processor)
 
         # if there is a post processing callback, call it passing the mask and the pdf_merger_image
         if post_callback is not None:
@@ -413,10 +419,10 @@ class DWWaterDetect:
         DWutils.plot_graphs(self.loader.raster_bands, self.config.graphs_bands, dw_image.cluster_matrix,
                             graph_basename, graph_title, self.loader.invalid_mask, 1000, pdf_merger_image)
 
-    def create_water_mask(self, band_combination, pdf_merger_image):
+    def create_water_mask(self, band_combination, pdf_merger_image, glint_processor=None):
         # create the clustering image
         dw_image = DWImageClustering(self.loader.raster_bands, band_combination,
-                                     self.loader.invalid_mask, self.config)
+                                     self.loader.invalid_mask, glint_processor, self.config)
         dw_image.run_detect_water()
 
         # save the water mask and the clustering results
@@ -448,20 +454,20 @@ class DWWaterDetect:
 
         return dw_image
 
-    def calc_glint(self, image, output_folder, pdf_merger_image):
-        """
-        Calculate the sun glint rejection using the angle Tetag between vectors pointing in the surface-to-satellite
-        and specular reflection directions
-        Also, checks if there are reports, then add the risk of glint to it.
-        """
-        xml = str(self.loader.metadata)
-        # check the path of the metadata file
-        DWutils.check_path(xml)
-        # extract angles from the metadata and make the glint calculation from it
-        glint = DWutils.extract_angles_from_xml(xml)
-
-        # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
-        DWutils.create_glint_pdf(xml, self.loader.glint_name, output_folder, glint, pdf_merger_image)
+    # def calc_glint(self, image, output_folder, pdf_merger_image):
+    #     """
+    #     Calculate the sun glint rejection using the angle Tetag between vectors pointing in the surface-to-satellite
+    #     and specular reflection directions
+    #     Also, checks if there are reports, then add the risk of glint to it.
+    #     """
+    #     xml = str(self.loader.metadata)
+    #     # check the path of the metadata file
+    #     DWutils.check_path(xml)
+    #     # extract angles from the metadata and make the glint calculation from it
+    #     glint = DWutils.extract_angles_from_xml(xml)
+    #
+    #     # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
+    #     DWutils.create_glint_pdf(xml, self.loader.glint_name, output_folder, glint, pdf_merger_image)
 
     def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
 

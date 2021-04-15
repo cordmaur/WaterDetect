@@ -116,6 +116,14 @@ class DWConfig:
         return self.get_option('General', 'calc_glint', evaluate=True)
 
     @property
+    def glint_mode(self):
+        return self.get_option('General', 'glint_mode', evaluate=True)
+
+    @property
+    def min_glint_multiplier(self):
+        return self.get_option('General', 'min_glint_multiplier', evaluate=True)
+
+    @property
     def pdf_resolution(self):
         return self.get_option('General', 'pdf_resolution', evaluate=True)
 
