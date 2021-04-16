@@ -5,6 +5,8 @@ from waterdetect.Common import DWConfig, DWutils
 from waterdetect.Image import DWImageClustering
 from waterdetect.Glint import DWGlintProcessor
 from waterdetect import jaccard_score, gdal
+from waterdetect import __version__ as wd_version
+
 import numpy as np
 from PyPDF2 import PdfFileMerger
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
@@ -236,6 +238,8 @@ class DWWaterDetect:
         For single detection, use run() method.
         :return: None
         """
+
+        print(f'Starting WaterDetection version: {wd_version}')
 
         # initialize the detect water instance variable with None
         dw_image = None
