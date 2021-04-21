@@ -116,6 +116,8 @@ class DWGlintProcessor:
 
         fn = Path(folder)/filename
         fig.savefig(fn, dpi=dpi)
+        fig.clf()
+
         return fn.as_posix()
 
     def create_multiplication_coefs(self, min_glint_multiplier=0.5):

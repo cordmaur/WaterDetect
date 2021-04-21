@@ -261,9 +261,6 @@ class DWWaterDetect:
                                      self.saver.temp_dir)
                     self.saver.update_geo_transform(image.geo_transform, image.projection)
 
-                # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
-                image.load_raster_bands(self.necessary_bands(include_rgb=False))
-
                 # load the masks specified in the config (internal masks for theia or landsat) and the external tif mask
                 image.load_masks(self.config.get_masks_list(image.product),
                                  self.config.external_mask,
@@ -272,9 +269,15 @@ class DWWaterDetect:
                                  self.config.mask_invalid_value)
 
                 # Test if there is enough valid pixels in the clipped images
-                if (np.count_nonzero(image.invalid_mask) / image.invalid_mask.size) > self.config.maximum_invalid:
-                    print('Not enough valid pixels in the image area')
+                invalid_pct = np.count_nonzero(image.invalid_mask) / image.invalid_mask.size
+                if invalid_pct > self.config.maximum_invalid:
+                    print(f'Invalid pixels ({invalid_pct}) > maximum ({self.config.maximum_invalid}). Skipping image')
                     continue
+                else:
+                    print(f'Invalid pixels ({invalid_pct}) < maximum ({self.config.maximum_invalid}).')
+
+                # Load necessary bands in memory as a dictionary of names (keys) and arrays (Values)
+                image.load_raster_bands(self.necessary_bands(include_rgb=False))
 
                 # calc the necessary indices and update the image's mask
                 self.calc_indexes(image, indexes_list=['mndwi', 'ndwi', 'mbwi'], save_index=self.config.save_indices)
