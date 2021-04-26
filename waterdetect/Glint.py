@@ -158,7 +158,7 @@ class DWGlintProcessor:
         if value > 0 and thresh_type == 'INF':
             thresh_grid = value - delta_grid
 
-        thresh_array = DWGlintProcessor.nn_interpolate(thresh_grid, (self.image.y_size, self.image.x_size))
+        thresh_array = DWGlintProcessor.nn_interpolate(thresh_grid, (self.image.x_size, self.image.y_size))
         return thresh_array[~mask] if mask is not None else thresh_array
 
     def __repr__(self):
