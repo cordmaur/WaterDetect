@@ -17,6 +17,17 @@ All the details and tests has been described in the article <b>Automatic Water D
 ## How to cite
 Cordeiro, M. C. R.; Martinez, J.-M.; Peña-Luque, S. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment 2021, 253, 112209. https://doi.org/10.1016/j.rse.2020.112209.
 
+## Changelog
+### Release 1.5.6 
+- new entry point runWaterDetect.py 
+- Namespace correction for different versions of sklearn package 
+- New treatment for negative reflectance values (individual pixel correction)
+- Added regularization option to avoid extreme values on Normalized Difference indices.
+- New water cluster detection method based on lowest Nir reflectance ("minnir")
+- Updated reporting. Invalid mask is superimposed to the RGB scene representation
+- Added support for Sen2Cor internal masks
+- GLINT mode (For entire scenes only). Creates a Glint heatmap based on viewing and solar angles and updates the thresholds to include waters with sun glint in the final mask
+
 
 ## Tutorial
 The following topics have the first steps to install and run the library. For a more comprehensive tutorial with code samples and results please refer to this tutorial https://cordmaur.medium.com/water-detection-in-high-resolution-satellite-images-using-the-waterdetect-python-package-7c5a031e3d16.
