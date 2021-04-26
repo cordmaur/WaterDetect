@@ -33,6 +33,7 @@ setuptools.setup(
         'matplotlib>=3.3',
         'PyPDF2>=1.26',
         'lxml>=4.5.0',
-        'pillow>=7.0.0'
+        'pillow>=7.0.0',
+        'packaging'
     ]
 )
