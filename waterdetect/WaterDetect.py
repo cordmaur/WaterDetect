@@ -137,24 +137,7 @@ class DWWaterDetect:
 
         mask = self.loader.invalid_mask
 
-        # changement for negative SRE values scene
-        min_cte = np.min([np.min(bands['Green'][~mask]), np.min(bands['Red'][~mask]),
-                          np.min(bands['Nir'][~mask]), np.min(bands['Mir'][~mask]), np.min(bands['Mir2'][~mask])])
-
-        if min_cte <= 0:
-            min_cte = -min_cte + 0.001
-        else:
-            min_cte = 0
-
-        mbwi = factor * (bands['Green']+min_cte) - (bands['Red']+min_cte) - (bands['Nir']+min_cte)\
-            - (bands['Mir']+min_cte) - (bands['Mir2']+min_cte)
-
-        mbwi[~mask] = RobustScaler(copy=False).fit_transform(mbwi[~mask].reshape(-1, 1)).reshape(-1)
-        mbwi[~mask] = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi[~mask].reshape(-1, 1))\
-            .reshape(-1)
-
-        mask = np.isinf(mbwi) | np.isnan(mbwi) | self.loader.invalid_mask
-        mbwi = np.ma.array(mbwi, mask=mask, fill_value=-9999)
+        mbwi, mask = DWutils.calc_mbwi(bands, factor, mask)
 
         self.loader.update_mask(mask)
 
@@ -164,6 +147,7 @@ class DWWaterDetect:
             self.saver.save_array(mbwi.filled(), self.loader.current_image_name + '_mbwi', no_data_value=-9999)
 
         return mbwi.filled()
+
 
     def calc_awei(self, bands, save_index=False):
         """
@@ -373,12 +357,16 @@ class DWWaterDetect:
         # calculate the sun glint rejection and add it to the pdf report
         # the glint will be passed to the
         if self.config.calc_glint:
-            glint_processor = DWGlintProcessor(image)
-            pdf_merger_image.append(glint_processor.save_heatmap(self.saver.output_folder))
+            glint_processor = DWGlintProcessor.create(image)
+
+            # if there is a valid glint_processor, save the heatmap
+            if glint_processor is not None:
+                pdf_merger_image.append(glint_processor.save_heatmap(self.saver.output_folder))
+            else:
+                print(f'Glint_mode is On but no Glint Processor is available for this product')
 
         else:
             glint_processor = None
-            # self.calc_glint(image, self.saver.output_folder, pdf_merger_image)
 
         # create a dw_image object with the water mask and all the results
         dw_image = self.create_water_mask(band_combination, pdf_merger_image, glint_processor=glint_processor)

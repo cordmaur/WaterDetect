@@ -2,9 +2,8 @@ import os
 from shutil import copy
 import configparser
 import ast
-
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
 from sklearn.preprocessing import QuantileTransformer
 from waterdetect import DWProducts, gdal
 
@@ -448,6 +447,24 @@ class DWutils:
         nd = np.ma.array(nd, mask=nd_mask, fill_value=-9999)
 
         return nd.filled(), nd.mask
+
+    @staticmethod
+    def calc_mbwi(bands, factor, mask):
+        # changement for negative SRE values scene
+        min_cte = np.min([np.min(bands['Green'][~mask]), np.min(bands['Red'][~mask]),
+                          np.min(bands['Nir'][~mask]), np.min(bands['Mir'][~mask]), np.min(bands['Mir2'][~mask])])
+        if min_cte <= 0:
+            min_cte = -min_cte + 0.001
+        else:
+            min_cte = 0
+        mbwi = factor * (bands['Green'] + min_cte) - (bands['Red'] + min_cte) - (bands['Nir'] + min_cte) \
+               - (bands['Mir'] + min_cte) - (bands['Mir2'] + min_cte)
+        mbwi[~mask] = RobustScaler(copy=False).fit_transform(mbwi[~mask].reshape(-1, 1)).reshape(-1)
+        mbwi[~mask] = MinMaxScaler(feature_range=(-1, 1), copy=False).fit_transform(mbwi[~mask].reshape(-1, 1)) \
+            .reshape(-1)
+        mask = np.isinf(mbwi) | np.isnan(mbwi) | mask
+        mbwi = np.ma.array(mbwi, mask=mask, fill_value=-9999)
+        return mbwi, mask
 
     @staticmethod
     def rgb_burn_in(red, green, blue, burn_in_array, color=None, min_value=None, max_value=None, colormap='viridis',

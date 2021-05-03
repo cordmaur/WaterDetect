@@ -1,6 +1,6 @@
 # todo: Implement logging
 # import logging
-__version__ = '1.5.7'
+__version__ = '1.5.8'
 
 class DWProducts:
     Landsat8_USGS = 'L8_USGS'

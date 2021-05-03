@@ -66,6 +66,12 @@ class DWImageClustering:
             invalid_mask |= ndwi_mask
             bands.update({'ndwi': ndwi})
 
+        # check if the MBWI index exist
+        if 'mbwi' not in bands.keys():
+            mbwi, mbwi_mask = DWutils.calc_mbwi(bands, 3, invalid_mask)
+            invalid_mask |= ndwi_mask
+            bands.update({'mbwi': mbwi})
+
         # todo: check the band for Principal Component Analysis
 
         # check if the list contains the required bands
@@ -649,7 +655,7 @@ class DWImageClustering:
 
         for band, value in zip(self.config.clip_band, self.config.clip_sup_value):
             if value is not None:
-                if self.config.glint_mode:
+                if self.config.glint_mode and (self.glint_processor is not None):
                     comp_array = self.glint_processor.glint_adjusted_threshold(band,
                                                                                value,
                                                                                'SUP',
@@ -663,7 +669,7 @@ class DWImageClustering:
         # after obtaining the final labels, clip bands with inferior limit
         for band, value in zip(self.config.clip_band, self.config.clip_inf_value):
             if value is not None:
-                if self.config.glint_mode:
+                if self.config.glint_mode and (self.glint_processor is not None):
                     comp_array = self.glint_processor.glint_adjusted_threshold(band,
                                                                                value,
                                                                                'INF',

@@ -5,18 +5,31 @@ import numpy as np
 
 
 class DWGlintProcessor:
+    supported_products = ['S2_S2COR', 'S2_THEIA']
+
     def __init__(self, image, limit_angle=30):
+
         self.image = image
         self.limit_angle = limit_angle
         self.adjustable_bands = ['Mir', 'Mir2', 'Nir', 'Nir2']
 
         try:
-            self.glint_array = self.create_glint_array(self.image.metadata)
+            self.glint_array = self.create_glint_array(self.image.metadata, image.product)
 
         except BaseException as err:
             self.glint_array = None
             print(f'### GLINT PROCESSOR ERROR #####')
             print(err)
+
+    @classmethod
+    def create(cls, image, limit_angle=30):
+        if image.product not in cls.supported_products:
+            print(f'Product {image.product} not supported by GlintProcessor')
+            print(f'Supported products: {cls.supported_products}')
+            return None
+        else:
+            return cls(image, limit_angle)
+
 
     @staticmethod
     def get_grid_values_from_xml(tree_node, xpath_str):
@@ -35,14 +48,16 @@ class DWGlintProcessor:
         return np.nanmean(arrays_lst, axis=0)
 
     @staticmethod
-    def create_glint_array(xml_file):
+    def create_glint_array(xml_file, product):
         xml_file = Path(xml_file)
         parser = etree.XMLParser()
         root = etree.parse(xml_file.as_posix(), parser).getroot()
 
-        sun_zenith = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, './/Sun_Angles_Grid/Zenith'))[:-1, :-1]
-        sun_azimuth = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, './/Sun_Angles_Grid/Azimuth'))[:-1,
-                      :-1]
+        sun_angles = 'Sun_Angles_Grid' if product == 'S2_S2COR' else 'Sun_Angles_Grids'
+        # viewing_angles = 'Viewing_Incidence_Angles_Grids'
+
+        sun_zenith = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, f'.//{sun_angles}/Zenith'))[:-1, :-1]
+        sun_azimuth = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, f'.//{sun_angles}/Azimuth'))[:-1,:-1]
 
         view_zenith = np.deg2rad(
             DWGlintProcessor.get_grid_values_from_xml(root, './/Viewing_Incidence_Angles_Grids/Zenith'))[:-1, :-1]
