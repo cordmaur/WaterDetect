@@ -32,6 +32,8 @@ def main():
     parser.add_argument("-i", "--input", help="The products input folder. Required.", required=False, type=str)
     parser.add_argument("-o", "--out", help="Output directory. Required.", required=False, type=str)
     parser.add_argument("-s", "--shp", help="SHP file. Optional.", type=str)
+    parser.add_argument("-sm", "--single", help="Run WaterDetect over only one image instead of a directory of images. "
+                                                "Optional.", action='store_true')
     parser.add_argument("-p", "--product", help='The product to be processed (S2_THEIA, L8_USGS, S2_L1C or S2_S2COR)',
                         default='S2_THEIA', type=str)
     parser.add_argument("-pk", "--pekel", help='Optional path for an occurrence base map like Pekel',
@@ -68,6 +70,9 @@ def main():
         if (args.input is None) or (args.out is None):
             print('Please specify input and output folders (-i, -o)')
 
+        elif args.single:
+            waterdetect.DWWaterDetect.run_single(image_folder=args.input, output_folder=args.out, shape_file=args.shp,
+                                                 product=args.product, config_file=args.config)
         else:
             waterdetect.DWWaterDetect.run_batch(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
                                                 product=args.product, config_file=args.config, pekel=args.pekel)
