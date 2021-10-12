@@ -23,17 +23,22 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     entry_points={
-        'console_scripts': ['waterdetect=runWaterDetect:main'],
+        'console_scripts': ['waterdetect=runWaterDetect:main', 'process_ext_masks=runWaterDetect:process_ext_masks'],
     },
     include_package_data=True,
     package_data={'waterdetect': ['../WaterDetect.ini', '../runWaterDetect.py']},
     install_requires=[
+        'packaging',
         'numpy>=1.17',
         'scikit_learn>=0.19',
         'matplotlib>=3.3',
         'PyPDF2>=1.26',
         'lxml>=4.5.0',
-        'pillow>=7.0.0',
-        'packaging'
+        'pillow>=7.0.0'
     ]
 )
+
+print('Finished instalation of the waterdetect package. Two scripts have been created. To know more about them you '
+      'can type the following commands:')
+print('-> waterdetect -h')
+print('-> process_ext_masks -h')

@@ -1,6 +1,6 @@
 # todo: Implement logging
 # import logging
-__version__ = '1.5.8'
+__version__ = '1.5.9'
 
 class DWProducts:
     Landsat8_USGS = 'L8_USGS'
@@ -33,5 +33,6 @@ else:
 from waterdetect.WaterDetect import DWWaterDetect
 from waterdetect.Image import DWImageClustering
 from waterdetect.Common import DWutils, DWConfig
+from waterdetect.External_mask import prepare_external_masks
 
 

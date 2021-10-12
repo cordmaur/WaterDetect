@@ -72,7 +72,7 @@ def main():
 
         elif args.single:
             waterdetect.DWWaterDetect.run_single(image_folder=args.input, output_folder=args.out, shape_file=args.shp,
-                                                 product=args.product, config_file=args.config)
+                                                 product=args.product, config_file=args.config, pekel=args.pekel)
         else:
             waterdetect.DWWaterDetect.run_batch(input_folder=args.input, output_folder=args.out, shape_file=args.shp,
                                                 product=args.product, config_file=args.config, pekel=args.pekel)
@@ -101,6 +101,33 @@ def debug_path(path,  name, list_files=False,):
                 print(str(f))
     else:
         print(f'[{name}] not specified')
+
+
+def process_ext_masks():
+    """
+    The External_mask main function is the script entry point to process an external mask and prepare it to be
+    consumed by the WaterDetect.
+    """
+    parser = argparse.ArgumentParser(description='The process_ext_mask is a script to prepare an external mask to '
+                                                 'be consumed by the waterdetect package.'
+                                                 'The masks should be placed into a single folder and the name must '
+                                                 'match Mission (S2A or S2B), datetime and tile id.'
+                                                 'Currently just the SAFE name convention (used by ESA, S2_S2COR) is'
+                                                 'supported.')
+
+    parser.add_argument("-md", "--masks_dir", help="The folder with the masks to be processed.", required=True,
+                        type=str)
+
+    parser.add_argument("-id", "--images_dir", help="The folder with the images.", required=True, type=str)
+    parser.add_argument("-p", "--product", help='The product to be processed. Only S2_S2COR is supported at the moment'
+                                                'For other images types (S2_THEIA or L8_USGS) the masks have to be '
+                                                'processed and copied manually into each image folder.',
+                        default='S2_S2COR', type=str)
+    parser.add_argument("-f", "--flags", nargs='+', help="Values to be masked, separated by ,", required=True, type=int)
+
+    args = parser.parse_args()
+
+    waterdetect.prepare_external_masks(args.images_dir, args.masks_dir, args.flags, args.product)
 
 
 # check if this file has been called as script

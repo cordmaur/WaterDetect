@@ -336,6 +336,25 @@ class DWConfig:
 class DWutils:
 
     @staticmethod
+    def parse_img_name(name, img_type='S2_S2COR'):
+
+        # ignore extension
+        name = name.split('.')[0]
+
+        if img_type == 'S2_S2COR':
+            lst = name.split('_')
+            return dict(mission=lst[0],
+                        level=lst[1],
+                        datetime=lst[2],
+                        pdgs=lst[3],
+                        orbit=lst[4],
+                        tile=lst[5])
+
+        else:
+            print(f'Image type {img_type} is not supported')
+            return None
+
+    @staticmethod
     def bitwise_or(array, bit_values):
         return np.bitwise_or(array, bit_values)
 
@@ -542,7 +561,6 @@ class DWutils:
             mask |= np.isnan(array) | np.isinf(array)
 
         return np.where(mask == True, -9999, array)
-
 
     @staticmethod
     def gray2color_ramp(grey_array, color1=(0., 0.0, .6), color2=(0.0, 0.8, 0.), color3=(1., 0., 0.),

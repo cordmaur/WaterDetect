@@ -148,7 +148,6 @@ class DWWaterDetect:
 
         return mbwi.filled()
 
-
     def calc_awei(self, bands, save_index=False):
         """
         Calculates the AWEI Water Index and adds it to the bands dictionary
@@ -174,8 +173,8 @@ class DWWaterDetect:
         return awei.filled()
 
     @classmethod
-    def run_single(cls, image_folder, output_folder=None, shape_file=None, product='S2_THEIA', config_file=None,
-                   post_callback=None):
+    def run_single(cls, image_folder, output_folder=None, shape_file=None, product='S2_THEIA',
+                   config_file=None, pekel=None, post_callback=None):
         """
         Run the detection algorithm for one image and one combination only.
         The input folder should be the folder of the unzipped satellite image.
@@ -186,6 +185,7 @@ class DWWaterDetect:
                  shape_file=shape_file,
                  product=product,
                  config_file=config_file,
+                 pekel=pekel,
                  single_mode=True)
 
         wd._detect_water(post_callback=post_callback)
