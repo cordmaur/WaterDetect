@@ -7,3 +7,4 @@ output/
 dist/
 waterdetect.egg-info/
 build/
+nbs/
