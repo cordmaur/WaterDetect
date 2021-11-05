@@ -10,7 +10,7 @@ from waterdetect import calinski_harabasz_score
 
 class DWImageClustering:
 
-    def __init__(self, bands, bands_keys, invalid_mask, glint_processor, config: DWConfig):
+    def __init__(self, bands, bands_keys, invalid_mask, config: DWConfig, glint_processor=None):
 
         self.glint_processor = glint_processor
         self.config = config
@@ -22,9 +22,44 @@ class DWImageClustering:
         self.water_mask = None
         self.best_k = None
         self._product_name = None
+        self.bands_keys = bands_keys
 
         self.bands, self.bands_keys, self.invalid_mask = self.check_necessary_bands(bands, bands_keys, invalid_mask)
         return
+
+    def get_necessary_bands(self):
+        """
+        Check the config file and all the parametrization to return a set of bands needed to run the algorithm
+        """
+
+        # create a set from the bands_keys
+        bands = set(self.bands_keys)
+
+        # include the reference band
+        bands.add(self.config.reference_band)
+
+        # consider the cluster detection method
+        band = self.config.detect_water_cluster[3:]
+        band = band.capitalize() if band in ['nir', 'mir'] else band
+        bands.add(band)
+
+        # consider the clipping bands
+        if self.config.clip_band is not None:
+            bands = bands.union(set(self.config.clip_band))
+
+        # separate the indices from the raw_bands
+        indices = set()
+        for index in DWutils.indices:
+            if index in bands:
+                indices.add(index)
+                bands.discard(index)
+
+        # add necessary bands to create the indices
+        for index in indices:
+            for band in DWutils.indices[index]:
+                bands.add(band)
+
+        return bands, indices
 
     def check_necessary_bands(self, bands, bands_keys, invalid_mask):
         """
@@ -39,8 +74,10 @@ class DWImageClustering:
         if type(bands) is not dict:
             raise OSError('Bands not in dictionary format')
 
-        # if len(bands) != len(bands_keys):
-        #     raise OSError('Bands and bands_keys have different sizes')
+        # check if the raw bands were correctly passed
+        required_bands, required_indices = self.get_necessary_bands()
+        if not required_bands.issubset(bands):
+            raise OSError(f'Required bands not informed: {required_bands.difference(bands)}')
 
         # get the first band as reference of size
         ref_band = list(bands.keys())[0]
@@ -53,21 +90,19 @@ class DWImageClustering:
             invalid_mask = np.zeros(ref_shape, dtype=bool)
 
         # check if the MNDWI index is necessary and if it exists
-        if (('mndwi' in DWutils.listify(bands_keys)) or (self.config.clustering_method=='maxmndwi')) and \
-                ('mndwi' not in bands.keys()):
-
+        if ('mndwi' in required_indices) and ('mndwi' not in bands):
             mndwi, mndwi_mask = DWutils.calc_normalized_difference(bands['Green'], bands['Mir2'], invalid_mask)
             invalid_mask |= mndwi_mask
             bands.update({'mndwi': mndwi})
 
         # check if the NDWI index exist
-        if 'ndwi' not in bands.keys():
+        if ('ndwi' in required_indices) and ('ndwi' not in bands.keys()):
             ndwi, ndwi_mask = DWutils.calc_normalized_difference(bands['Green'], bands['Nir'], invalid_mask)
             invalid_mask |= ndwi_mask
             bands.update({'ndwi': ndwi})
 
         # check if the MBWI index exist
-        if 'mbwi' not in bands.keys():
+        if ('mbwi' in required_indices) and ('mbwi' not in bands.keys()):
             mbwi, mbwi_mask = DWutils.calc_mbwi(bands, 3, invalid_mask)
             invalid_mask |= ndwi_mask
             bands.update({'mbwi': mbwi})

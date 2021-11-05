@@ -123,7 +123,6 @@ class DWLoader:
         """
         return self.images[self._index]
 
-
     @property
     def current_image_name(self):
         """

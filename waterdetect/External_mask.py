@@ -2,6 +2,8 @@ from pathlib import Path
 from .Common import DWutils
 from . import gdal
 from typing import Union
+import numpy as np
+from skimage.morphology import binary_dilation
 
 
 def search_mask(img_path: Path, masks_path: Path, img_type='S2_S2COR') -> Union[Path, None]:
@@ -27,18 +29,52 @@ def search_mask(img_path: Path, masks_path: Path, img_type='S2_S2COR') -> Union[
     return
 
 
-def process_mask(mask: Path, img: Path, flags: list, valid_value=0, invalid_value=255) -> None:
+def set_mask_flags(mask: np.ndarray, flags: list, dilation: int = 0) -> np.ndarray:
+    """
+    Given a mask, set the pixels that have flag values as True and others as False.
+    Return this boolean array.
+    @param mask: path to a geotiff with the mask
+    @param flags: values of the mask that shall be set to True
+    @param dilation: Applies a dilation on the True pixels. Default=0 (no dilation)
+    @return: boolean array
+    """
 
-    # read the given mask
-    ds = gdal.Open(mask.as_posix())
-    mask_array = ds.ReadAsArray()
+    # create the boolean result
+    bool_mask = np.zeros_like(mask).astype('bool')
 
     # the flags will be set to the invalid value
     for flag in flags:
-        mask_array[mask_array == flag] = invalid_value
+        bool_mask[mask == flag] = True
 
-    # all other points will be valid
-    mask_array[mask_array != invalid_value] = valid_value
+    # if a dilation size is set
+    if dilation > 0:
+        bool_mask = binary_dilation(bool_mask, np.ones((dilation, dilation)))
+
+    return bool_mask
+
+
+def process_mask(mask: Path, img: Path, flags: list, valid_value=0, invalid_value=255, dilation=0) -> None:
+    """
+    Given a mask path and the satellite image path, set the pixels with values in the flags list to invalid value
+    and remaining pixels to valid_value. At the end, the processed mask will be saved to the image directory.
+    @param mask: path to the mask geotiff
+    @param img: path to the image directory, where the mask will be copied into.
+    @param flags: flags on the mask image that should be masked (set to True)
+    @param valid_value: value to be assigned to valid pixels
+    @param invalid_value: value to be assigned to invalid pixels
+    @param dilation: Size of the kernel (square) to be applied in the dilation processing
+    @return: Nothing
+    """
+
+    # read the given mask
+    ds = gdal.Open(mask.as_posix())
+    input_mask = ds.ReadAsArray().astype('uint8')
+
+    # create the binary mask
+    binary_mask = set_mask_flags(input_mask, flags, dilation)
+
+    # assign the values accordingly
+    mask_array = np.where(binary_mask, invalid_value, valid_value)
 
     # at the end, we will save the mask into the img path
     mask_name = (img/mask.name).as_posix()
@@ -46,7 +82,7 @@ def process_mask(mask: Path, img: Path, flags: list, valid_value=0, invalid_valu
     DWutils.array2raster(mask_name, mask_array, ds.GetGeoTransform(), ds.GetProjection(), gdal.GDT_UInt16)
 
 
-def prepare_external_masks(imgs_dir: str, masks_dir: str, flags: list, img_type: str = 'S2_S2COR') -> None:
+def prepare_external_masks(imgs_dir: str, masks_dir: str, flags: list, img_type: str = 'S2_S2COR', dilation=0) -> None:
 
     # convert the directories to Paths
     imgs_path, masks_path = Path(imgs_dir), Path(masks_dir)
@@ -58,4 +94,5 @@ def prepare_external_masks(imgs_dir: str, masks_dir: str, flags: list, img_type:
     for img in imgs:
         mask = search_mask(img, masks_path, img_type)
         if mask is not None:
-            process_mask(mask, img, flags)
+            print(f'Processing mask: {str(mask)}')
+            process_mask(mask, img, flags, dilation=dilation)

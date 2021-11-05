@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
 from sklearn.preprocessing import QuantileTransformer
 from waterdetect import DWProducts, gdal
+from lxml import etree
+from PIL import Image, ImageDraw, ImageFont
 
 import numpy as np
 from pathlib import Path
@@ -13,40 +15,14 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from lxml import etree
-from PIL import Image, ImageDraw, ImageFont
-
 
 def test_ini():
     for attr in dir(DWProducts):
         print(getattr(DWProducts, attr))
 
 
-class DWConfig:
-
-    _config_file = 'WaterDetect.ini'
-    _defaults = {'reference_band': 'Red',
-                 'maximum_invalid': '0.8',
-                 'create_composite': 'True',
-                 'pdf_reports': 'False',
-                 'save_indices': 'False',
-                 'texture_streching': 'False',
-                 'clustering_method': 'aglomerative',
-                 'min_clusters': '1',
-                 'max_clusters': '5',
-                 'clip_band': 'None',
-                 'clip_value': 'None',
-                 'classifier': 'naive_bayes',
-                 'train_size': '0.1',
-                 'min_train_size': '1000',
-                 'max_train_size': '10000',
-                 'score_index': 'calinsk',
-                 'detectwatercluster': 'maxmndwi',
-                 'clustering_bands': "[['ndwi', 'Nir']]",
-                 'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]",
-                 'plot_ts': 'False',
-                 'calc_glint': 'True'
-                 }
+class DWBaseConfig:
+    _defaults = {}
 
     _units = {'turb-dogliotti': 'FNU',
               'spm-get': 'mg/l',
@@ -59,6 +35,20 @@ class DWConfig:
         self.config = self.load_config_file(config_file)
 
         return
+
+    def load_config_file(self, config_file):
+
+        if config_file:
+            self._config_file = config_file
+
+        print('Loading configuration file {}'.format(self._config_file))
+
+        DWutils.check_path(self._config_file)
+
+        config = configparser.ConfigParser()
+        config.read(self._config_file)
+
+        return config
 
     def return_defaults(self, section, key):
 
@@ -84,19 +74,32 @@ class DWConfig:
         else:
             return str_value
 
-    def load_config_file(self, config_file):
 
-        if config_file:
-            self._config_file = config_file
+class DWConfig(DWBaseConfig):
 
-        print('Loading configuration file {}'.format(self._config_file))
-
-        DWutils.check_path(self._config_file)
-
-        config = configparser.ConfigParser()
-        config.read(self._config_file)
-
-        return config
+    _config_file = 'WaterDetect.ini'
+    _defaults = {'reference_band': 'Red',
+                 'maximum_invalid': '0.8',
+                 'create_composite': 'True',
+                 'pdf_reports': 'False',
+                 'save_indices': 'False',
+                 'texture_streching': 'False',
+                 'clustering_method': 'aglomerative',
+                 'min_clusters': '1',
+                 'max_clusters': '5',
+                 'clip_band': 'None',
+                 'clip_value': 'None',
+                 'classifier': 'naive_bayes',
+                 'train_size': '0.1',
+                 'min_train_size': '1000',
+                 'max_train_size': '10000',
+                 'score_index': 'calinsk',
+                 'detectwatercluster': 'maxmndwi',
+                 'clustering_bands': "[['ndwi', 'Nir']]",
+                 'graphs_bands': "[['mbwi', 'mndwi'], ['ndwi', 'mbwi']]",
+                 'plot_ts': 'False',
+                 'calc_glint': 'True'
+                 }
 
     @property
     def reference_band(self):
@@ -157,46 +160,6 @@ class DWConfig:
     @property
     def mask_invalid_value(self):
         return self.get_option('External_Mask', 'mask_invalid_value', evaluate=True)
-
-    @property
-    def inversion(self):
-        return self.get_option('Inversion', 'inversion', evaluate=True)
-
-    @property
-    def parameter(self):
-        if self.inversion:
-            return self.get_option('Inversion', 'parameter', evaluate=False)
-        else:
-            return ''
-
-    @property
-    def parameter_unit(self):
-
-        return self._units[self.parameter]
-
-    @property
-    def negative_values(self):
-        return self.get_option('Inversion', 'negative_values', evaluate=False)
-
-    @property
-    def min_param_value(self):
-        return self.get_option('Inversion', 'min_param_value', evaluate=True)
-
-    @property
-    def max_param_value(self):
-        return self.get_option('Inversion', 'max_param_value', evaluate=True)
-
-    @property
-    def colormap(self):
-        return self.get_option('Inversion', 'colormap', evaluate=False)
-
-    @property
-    def colormap(self):
-        return self.get_option('Inversion', 'colormap', evaluate=False)
-
-    @property
-    def uniform_distribution(self):
-        return self.get_option('Inversion', 'uniform_distribution', evaluate=True)
 
     @property
     def maximum_invalid(self):
@@ -311,7 +274,6 @@ class DWConfig:
         else:
             return []
 
-
     def get_masks_list(self, product):
 
         masks_lst = []
@@ -334,6 +296,10 @@ class DWConfig:
 
 
 class DWutils:
+    indices = {'mndwi': ['Green', 'Mir2'],
+               'ndwi': ['Green', 'Nir'],
+               'mbwi': ['Red', 'Green', 'Nir', 'Mir', 'Mir2'],
+              }
 
     @staticmethod
     def parse_img_name(name, img_type='S2_S2COR'):
@@ -525,7 +491,7 @@ class DWutils:
 
             # rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values[:, 0], limits=(0, 0.3))
             rgb_burn_in_values = DWutils.gray2color_ramp(burn_in_values, min_value=min_value, max_value=max_value,
-                                                         colormap=colormap, limits=(0, 0.25))
+                                                         colormap=colormap, limits=(0, 1.))
 
             # return the scaled values to the burn_in_array
             # burn_in_array[~mask] = burn_in_values[:, 0]
@@ -552,7 +518,11 @@ class DWutils:
             new_green = np.where(burn_in_array == no_data_value, green*fade, burn_in_green)
             new_blue = np.where(burn_in_array == no_data_value, blue*fade, burn_in_blue)
 
+            # for band in [new_red, new_green, new_blue]:
+            #     band[mask] = no_data_value
+
         return new_red, new_green, new_blue
+
 
     @staticmethod
     def apply_mask(array, mask, no_data_value=-9999, clear_nan=True):
@@ -793,7 +763,7 @@ class DWutils:
         plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick','orange', 'cyan']
         # plot_colors = list(colors.cnames.keys())
 
-        fig, ax1 = plt.subplots()
+        fig, ax1 = plt.subplots(figsize=(15, 10), dpi=100)
 
         k = np.unique(data[:, 2])
 
@@ -811,7 +781,7 @@ class DWutils:
             ax1.set_ylabel(graph_options['y_label'])
             ax1.set_title(graph_options['title'])
 
-            ax1.plot(cluster_i[:, 0], cluster_i[:, 1], '.', label=label, c=colorname)
+            ax1.plot(cluster_i[:, 0], cluster_i[:, 1], '.', label=label, c=colorname,)
 
         handles, labels = ax1.get_legend_handles_labels()
         ax1.legend(handles, labels)

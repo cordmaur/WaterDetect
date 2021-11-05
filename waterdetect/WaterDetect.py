@@ -19,7 +19,8 @@ Author: Mauricio Cordeiro
 
 class DWWaterDetect:
 
-    def __init__(self, input_folder, output_folder, shape_file, product, config_file, pekel=None, single_mode=False):
+    def __init__(self, input_folder, output_folder, shape_file, product, config_file, pekel=None, single_mode=False,
+                 *args, **kwargs):
 
         # Create the Configuration object.
         # It loads the configuration file (WaterDetect.ini) and holds all the defaults if missing parameters
@@ -173,46 +174,36 @@ class DWWaterDetect:
         return awei.filled()
 
     @classmethod
-    def run_single(cls, image_folder, output_folder=None, shape_file=None, product='S2_THEIA',
-                   config_file=None, pekel=None, post_callback=None):
+    def run_water_detect(cls, input_folder, output_folder, single_mode, shape_file=None, product='S2_THEIA',
+                         config_file=None, pekel=None, post_callback=None, **kwargs):
         """
-        Run the detection algorithm for one image and one combination only.
-        The input folder should be the folder of the unzipped satellite image.
-        :return: instance of DWImageClustering  with mask and clustering results
+        Main function to launch the water detect algorithm processing. This is the function called from the script.
+        @param input_folder: If single_mode=True, this is the uncompressed image product. If single_mode=False, this
+        is the folder that contains all uncompressed images.
+        @param output_folder: Output directory
+        @param single_mode: For batch processing (multiple images at a time), single_mode should be set to False
+        @param shape_file: Shape file to clip the image (optional).
+        @param product: The product to be processed (S2_THEIA, L8_USGS, S2_L1C or S2_S2COR)
+        @param config_file: Configuration .ini file. If not specified WaterDetect.ini from current dir and used as
+                            default
+        @param pekel: Optional path for an occurrence base map like Pekel
+        @param post_callback: Used for the WaterQuality add-on package
+        @param kwargs: Additional parameters.
+        @return: DWWaterDetect instance with the generated mask.
         """
-        wd = cls(input_folder=image_folder,
-                 output_folder=output_folder,
-                 shape_file=shape_file,
-                 product=product,
-                 config_file=config_file,
-                 pekel=pekel,
-                 single_mode=True)
 
-        wd._detect_water(post_callback=post_callback)
-
-        return wd
-
-    @classmethod
-    def run_batch(cls, input_folder, output_folder, shape_file=None, product='S2_THEIA',
-                  config_file=None, pekel=None, post_callback=None):
-        """
-        Run batch is intended for multi processing of various images and bands combinations.
-        It Loops through all unzipped images in input folder, extract water pixels and save results to output folder
-        ATT: The input folder is not a satellite image itself. It should be the parent folder containing all images.
-        For single detection, use run() method.
-        :return: None
-        """
         wd = cls(input_folder=input_folder,
                  output_folder=output_folder,
                  shape_file=shape_file,
                  product=product,
                  config_file=config_file,
                  pekel=pekel,
-                 single_mode=False)
+                 single_mode=single_mode,
+                 **kwargs)
 
         wd._detect_water(post_callback=post_callback)
 
-        return
+        return wd
 
     def _detect_water(self, post_callback=None):
         """
@@ -417,7 +408,7 @@ class DWWaterDetect:
     def create_water_mask(self, band_combination, pdf_merger_image, glint_processor=None):
         # create the clustering image
         dw_image = DWImageClustering(self.loader.raster_bands, band_combination,
-                                     self.loader.invalid_mask, glint_processor, self.config)
+                                     self.loader.invalid_mask, self.config, glint_processor)
         dw_image.run_detect_water()
 
         # save the water mask and the clustering results

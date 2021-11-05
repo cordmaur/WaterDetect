@@ -5,3 +5,4 @@ scikit_learn>=0.19
 matplotlib>=3.3
 PyPDF2>=1.26
 scikit-image>=0.13
+pillow>=7.0.0
