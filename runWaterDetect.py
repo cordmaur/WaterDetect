@@ -126,10 +126,10 @@ def process_ext_masks():
                                                 'processed and copied manually into each image folder.',
                         default='S2_S2COR', type=str)
     parser.add_argument("-d", "--dilation", type=int, required=False, default=0,
-                        help='Size of the dilation kernel to be applied to the final mask. Default value is 0 '
-                             '(no dilation).')
+                        help='Size of the dilation kernel to be applied to the final mask in pixels. '
+                             'Default value is 0 (no dilation).')
     parser.add_argument("-f", "--flags", help="Values to be masked. Each value should be preceded by the -f "
-                                              "(ex. -f 2 -f 3 -f 15",
+                                              "(ex. -f 2 -f 3 -f 15)",
                         required=True, type=int, action='append')
 
     args = parser.parse_args()

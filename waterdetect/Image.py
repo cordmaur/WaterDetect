@@ -32,8 +32,11 @@ class DWImageClustering:
         Check the config file and all the parametrization to return a set of bands needed to run the algorithm
         """
 
+        # first we will flatten the bands_keys list (it can contain list of lists)
+        bands = DWutils.flatten(self.bands_keys)
+
         # create a set from the bands_keys
-        bands = set(self.bands_keys)
+        bands = set(bands)
 
         # include the reference band
         bands.add(self.config.reference_band)

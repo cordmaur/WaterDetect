@@ -92,7 +92,12 @@ def prepare_external_masks(imgs_dir: str, masks_dir: str, flags: list, img_type:
 
     # loop through the images. For each image, we will look for the corresponding mask
     for img in imgs:
-        mask = search_mask(img, masks_path, img_type)
-        if mask is not None:
-            print(f'Processing mask: {str(mask)}')
-            process_mask(mask, img, flags, dilation=dilation)
+        try:
+            mask = search_mask(img, masks_path, img_type)
+            if mask is not None:
+                print(f'Processing mask: {str(mask)}')
+                process_mask(mask, img, flags, dilation=dilation)
+                
+        except Exception as e:
+            print(e)
+            print(f'Problem processing mask {mask.name}')

@@ -329,6 +329,16 @@ class DWutils:
         return np.bitwise_and(array, bit_values)
 
     @staticmethod
+    def flatten(x):
+        result = []
+        for el in x:
+            if isinstance(el, list):
+                result.extend(DWutils.flatten(el))
+            else:
+                result.append(el)
+        return result
+
+    @staticmethod
     def listify(lst, uniques=[]):
         # pdb.set_trace()
         for item in lst:
