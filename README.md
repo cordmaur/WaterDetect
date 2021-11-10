@@ -18,6 +18,8 @@ All the details and tests has been described in the article <b>Automatic Water D
 Cordeiro, M. C. R.; Martinez, J.-M.; Peña-Luque, S. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment 2021, 253, 112209. https://doi.org/10.1016/j.rse.2020.112209.
 
 ## Changelog
+### Release 1.5.11
+- Bug fix when loading L1C and S2COR images, from MacOS.
 
 ### Release 1.5.9
 - Added external mask processing through the command `process_ext_masks`. It prepares an external mask (ex. created by FMask) to be used by WaterDetect.
