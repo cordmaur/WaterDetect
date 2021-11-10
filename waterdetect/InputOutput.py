@@ -150,7 +150,7 @@ class DWLoader:
                     bands_path /= subdir
                 else:
                     # add the first directory (hopefully the only one) to the path
-                    bands_path /= [d for d in bands_path.iterdir() if d.is_dir()][0]
+                    bands_path /= [d.name for d in bands_path.iterdir() if d.is_dir()][0]
 
         return bands_path
 
@@ -342,6 +342,8 @@ class DWLoader:
 
         if mask_processor:
             self.update_mask(mask_processor.get_combined_masks(product_masks_list))
+        else:
+            self.update_mask(np.zeros((self.y_size, self.x_size)).astype('bool'))
 
         if external_mask:
             mask_file = DWutils.find_file_glob(mask_name, self.current_image_folder)
