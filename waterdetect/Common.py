@@ -282,7 +282,7 @@ class DWConfig(DWBaseConfig):
             section_name = 'LandsatMasks'
         elif product == 'S2_THEIA':
             section_name = 'TheiaMasks'
-        elif product == 'S2_S2COR':
+        elif product in ['S2_S2COR', 'S2_PLANETARY']:
             section_name = 'S2CORMasks'
         else:
             section_name = None
@@ -302,23 +302,94 @@ class DWutils:
               }
 
     @staticmethod
-    def parse_img_name(name, img_type='S2_S2COR'):
+    def parse_sat_name(folder, img_type='S2_THEIA'):
+        img = Path(folder)
+        if img_type == 'S2_THEIA':
+            return DWutils.parse_maja_name(img.stem)
+        elif img_type == 'S2_S2COR':
+            return DWutils.parse_s2cor_name(img.stem)
+        elif img_type == 'S2_PLANETARY':
+            return DWutils.parse_planetary_name(img.stem)
+        else:
+            raise Exception('Only MAJA type is supported')
+
+    @staticmethod
+    def parse_planetary_name(name: str):
+        """
+        Get the string with a MS PLANETARY name and extract the useful information from it.
+        @param name: Image name
+        @return: Dictionary with the values.
+        """
 
         # ignore extension
         name = name.split('.')[0]
 
-        if img_type == 'S2_S2COR':
-            lst = name.split('_')
-            return dict(mission=lst[0],
-                        level=lst[1],
-                        datetime=lst[2],
-                        pdgs=lst[3],
-                        orbit=lst[4],
-                        tile=lst[5])
+        lst = name.split('_')
 
-        else:
-            print(f'Image type {img_type} is not supported')
-            return None
+        result = dict(mission=lst[0],
+                      level=lst[1][3:],
+                      datetime=lst[2],
+                      orbit=lst[3],
+                      tile=lst[4][1:])
+
+        result['date'], result['time'] = result['datetime'].split('T')
+        result['year'] = result['date'][:4]
+        result['month'] = result['date'][4:6]
+        result['day'] = result['date'][6:]
+
+        return result
+
+    @staticmethod
+    def parse_maja_name(name: str):
+        """
+        Get the string with a MAJA img name (THEIA format) and extract the useful information from it.
+        @param name: Image name
+        @return: Dictionary with the values.
+        """
+
+        # ignore extension
+        name = name.split('.')[0]
+
+        mission, datetime, level, tile, metadata, version = name.split('_')
+        date, time, _ = datetime.split('-')
+
+        result = dict(mission='S' + mission[-2:],
+                      level=level,
+                      datetime=f'{date}T{time}',
+                      tile=tile[1:],
+                      date=date,
+                      time=time,
+                      year=date[:4],
+                      month=date[4:6],
+                      day=date[6:]
+                      )
+        return result
+
+    @staticmethod
+    def parse_s2cor_name(name: str):
+        """
+        Get the string with a S2COR name (.SAFE format) and extract the useful information from it.
+        @param name: Image name
+        @return: Dictionary with the values.
+        """
+        # ignore extension
+        name = name.split('.')[0]
+
+        lst = name.split('_')
+
+        result = dict(mission=lst[0],
+                      level=lst[1][3:],
+                      datetime=lst[2],
+                      pdgs=lst[3],
+                      orbit=lst[4],
+                      tile=lst[5][1:])
+
+        result['date'], result['time'] = result['datetime'].split('T')
+        result['year'] = result['date'][:4]
+        result['month'] = result['date'][4:6]
+        result['day'] = result['date'][6:]
+
+        return result
 
     @staticmethod
     def bitwise_or(array, bit_values):

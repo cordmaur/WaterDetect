@@ -2,6 +2,7 @@
 # import logging
 __version__ = '1.5.11'
 
+
 class DWProducts:
     Landsat8_USGS = 'L8_USGS'
     Sentinel2_THEIA = 'S2_THEIA'

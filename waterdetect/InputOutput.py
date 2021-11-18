@@ -13,6 +13,11 @@ class DWLoader:
                                      'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5', 'RedEdg2': 'B6', 'RedEdg3': 'B7'},
                      'suffix': '.tif', 'string': 'SRE', 'metadata': '*MTD_ALL.xml', 'recursive': False},
 
+        'S2_PLANETARY': {'bands_names': {'Blue': 'B02_10m', 'Green': 'B03_10m', 'Red': 'B04_10m', 'Mir': 'B11_20m',
+                                         'Mir2': 'B12_20m', 'Nir': 'B08_10m', 'Nir2': 'B8A_20m', 'RedEdg1': 'B05_20m',
+                                         'RedEdg2': 'B06_20m', 'RedEdg3': 'B07_20m'},
+                         'suffix': '.tif', 'string': '', 'metadata': '*MTD_TL.xml', 'recursive': False},
+
         'S2_S2COR': {'bands_names': {'Blue': 'B02_10m', 'Green': 'B03_10m', 'Red': 'B04_10m', 'Mir': 'B11_20m',
                                      'Mir2': 'B12_20m', 'RedEdg1': 'B05_20m', 'RedEdg2': 'B06_20m',
                                      'RedEdg3': 'B07_20m', 'Nir': 'B08_10m', 'Nir2': 'B8A_20m'},
@@ -336,7 +341,7 @@ class DWLoader:
             mask_processor = DWLandsatMaskProcessor(self.current_image_folder, self.x_size, self.y_size,
                                                     self.shape_file, self.temp_dir)
 
-        elif self.product == 'S2_S2COR':
+        elif self.product in ['S2_S2COR', 'S2_PLANETARY']:
             mask_processor = DWS2CORMaskProcessor(self.current_image_folder, self.x_size, self.y_size,
                                                   self.shape_file, self.temp_dir)
 
@@ -575,7 +580,7 @@ class DWS2CORMaskProcessor:
 
     def open_gdal_masks(self, shape_file, temp_dir):
 
-        mask_file = [file for file in self.masks_folder.rglob('*SCL_20m.jp2')][0]
+        mask_file = [file for file in self.masks_folder.rglob('*SCL_20m*')][0]
         gdal_mask = gdal.Open(mask_file.as_posix())
 
         if shape_file:
@@ -660,6 +665,7 @@ class DWLandsatMaskProcessor:
         combined_mask = np.bitwise_and(self.mask, bitmask) != 0
 
         return combined_mask
+
 
 class DWTheiaMaskProcessor:
 

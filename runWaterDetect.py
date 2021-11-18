@@ -114,17 +114,26 @@ def process_ext_masks():
                                                  'be consumed by the waterdetect package.'
                                                  'The masks should be placed into a single folder and the name must '
                                                  'match Mission (S2A or S2B), datetime and tile id. '
-                                                 'Currently just the SAFE name convention (used by ESA, S2_S2COR) is '
-                                                 'supported.')
+                                                 'The naming conventions used by S2_S2COR, S2_THEIA and S2_PLANETARY'
+                                                 ' are currently supported.')
 
     parser.add_argument("-md", "--masks_dir", help="The folder with the masks to be processed.", required=True,
                         type=str)
 
     parser.add_argument("-id", "--images_dir", help="The folder with the images.", required=True, type=str)
-    parser.add_argument("-p", "--product", help='The product to be processed. Only S2_S2COR is supported at the moment'
-                                                'For other images types (S2_THEIA or L8_USGS) the masks have to be '
-                                                'processed and copied manually into each image folder.',
+
+    parser.add_argument("-mp", "--masks_name",
+                        help='The name format of the masks. S2_S2COR, S2_THEIA and S2_PLANETARY are supported at the '
+                             'moment. For other naming pattern (ex. L8_USGS) the masks have to be '
+                             'processed and copied manually into each image folder.',
                         default='S2_S2COR', type=str)
+
+    parser.add_argument("-ip", "--images_name",
+                        help='The name format of the images. S2_S2COR, S2_THEIA and S2_PLANETARY are supported at the '
+                             'moment. For other naming pattern (ex. L8_USGS) the masks have to be '
+                             'processed and copied manually into each image folder.',
+                        default='S2_S2COR', type=str)
+
     parser.add_argument("-d", "--dilation", type=int, required=False, default=0,
                         help='Size of the dilation kernel to be applied to the final mask in pixels. '
                              'Default value is 0 (no dilation).')
@@ -137,7 +146,8 @@ def process_ext_masks():
     waterdetect.prepare_external_masks(imgs_dir=args.images_dir,
                                        masks_dir=args.masks_dir,
                                        flags=args.flags,
-                                       img_type=args.product,
+                                       img_type=args.images_name,
+                                       msk_type=args.masks_name,
                                        dilation=args.dilation)
 
 

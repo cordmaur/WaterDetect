@@ -5,7 +5,7 @@ import numpy as np
 
 
 class DWGlintProcessor:
-    supported_products = ['S2_S2COR', 'S2_THEIA']
+    supported_products = ['S2_S2COR', 'S2_THEIA', 'S2_PLANETARY']
 
     def __init__(self, image, limit_angle=30):
 
@@ -30,7 +30,6 @@ class DWGlintProcessor:
         else:
             return cls(image, limit_angle)
 
-
     @staticmethod
     def get_grid_values_from_xml(tree_node, xpath_str):
         """Receives a XML tree node and a XPath parsing string and search for children matching the string.
@@ -53,7 +52,7 @@ class DWGlintProcessor:
         parser = etree.XMLParser()
         root = etree.parse(xml_file.as_posix(), parser).getroot()
 
-        sun_angles = 'Sun_Angles_Grid' if product == 'S2_S2COR' else 'Sun_Angles_Grids'
+        sun_angles = 'Sun_Angles_Grid' if product in ['S2_S2COR', 'S2_PLANETARY'] else 'Sun_Angles_Grids'
         # viewing_angles = 'Viewing_Incidence_Angles_Grids'
 
         sun_zenith = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, f'.//{sun_angles}/Zenith'))[:-1, :-1]
