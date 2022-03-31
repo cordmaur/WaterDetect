@@ -18,6 +18,9 @@ All the details and tests has been described in the article <b>Automatic Water D
 Cordeiro, M. C. R.; Martinez, J.-M.; Peña-Luque, S. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment 2021, 253, 112209. https://doi.org/10.1016/j.rse.2020.112209.
 
 ## Changelog
+### Release 1.5.12
+- Minor updates to make it compatible with the `waterquality` package. For more information, check the waterquality package here: https://github.com/cordmaur/WaterQuality
+
 ### Release 1.5.11
 - Bug fix when loading L1C and S2COR images, from MacOS.
 
