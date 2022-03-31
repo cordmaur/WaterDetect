@@ -455,17 +455,13 @@ class DWWaterDetect:
     #     # create a pdf file that indicate if there is glint on the image and add it to the final pdf report
     #     DWutils.create_glint_pdf(xml, self.loader.glint_name, output_folder, glint, pdf_merger_image)
 
-    def create_colorbar_pdf(self, product_name, colormap, min_value, max_value):
+    def create_colorbar_pdf(self, param_name, colormap, min_value, max_value, units=''):
 
-        filename = self.saver.output_folder.joinpath(product_name + '.pdf')
-
-        p_name = product_name.split('_')
-        name_param = p_name[1]
+        filename = self.saver.output_folder.joinpath('colorbar_' + param_name + '.pdf')
 
         DWutils.create_colorbar_pdf(product_name=filename,
                                     title=self.saver.area_name + ' ' + self.saver.base_name,
-                                    label=name_param + ' ' + DWConfig._units[name_param],
-                                    # label=self.config.parameter + ' ' + self.config.parameter_unit,
+                                    label=param_name + ' ' + units,
                                     colormap=colormap,
                                     min_value=min_value,
                                     max_value=max_value)

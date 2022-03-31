@@ -942,7 +942,7 @@ class DWutils:
         return bands_dict
 
     @staticmethod
-    def create_colorbar_pdf(product_name, title, label, colormap, min_value, max_value):
+    def create_colorbar_pdf(product_name, title, label, colormap, min_value, max_value, log_scale=False):
         # Make a figure and axes with dimensions as desired.
         fig = plt.figure(figsize=(4, 1))
         ax1 = fig.add_axes([0.05, 0.50, 0.90, 0.15])
@@ -950,8 +950,11 @@ class DWutils:
         # Set the colormap and norm to correspond to the data for which
         # the colorbar will be used.
 
-        #norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
-        norm = matplotlib.colors.LogNorm(vmin=min_value, vmax=max_value)
+        if log_scale:
+            norm = matplotlib.colors.LogNorm(vmin=min_value, vmax=max_value)
+        else:
+            norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
+
         #norm = matplotlib.colors.SymLogNorm(linthresh=0.03, linscale=0.03,vmin=min_value, vmax=max_value)
 
         #
