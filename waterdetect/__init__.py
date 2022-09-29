@@ -1,6 +1,6 @@
 # todo: Implement logging
 # import logging
-__version__ = '1.5.12'
+__version__ = '1.5.13'
 
 
 class DWProducts:
