@@ -5,37 +5,41 @@ from pathlib import Path
 import re
 from waterdetect.Common import DWutils
 from waterdetect import gdal, DWProducts
+from lxml import etree
 
 
 class DWLoader:
     satellite_Dict = {
         'S2_THEIA': {'bands_names': {'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'Mir': 'B11', 'Mir2': 'B12',
                                      'Nir': 'B8', 'Nir2': 'B8A', 'RedEdg1': 'B5', 'RedEdg2': 'B6', 'RedEdg3': 'B7'},
-                     'suffix': '.tif', 'string': 'SRE', 'metadata': '*MTD_ALL.xml', 'recursive': False},
+                     'suffix': '.tif', 'string': 'SRE', 'granule_metadata': '*MTD_ALL.xml', 'recursive': False},
 
         'S2_PLANETARY': {'bands_names': {'Blue': 'B02_10m', 'Green': 'B03_10m', 'Red': 'B04_10m', 'Mir': 'B11_20m',
                                          'Mir2': 'B12_20m', 'Nir': 'B08_10m', 'Nir2': 'B8A_20m', 'RedEdg1': 'B05_20m',
                                          'RedEdg2': 'B06_20m', 'RedEdg3': 'B07_20m'},
-                         'suffix': '.tif', 'string': '', 'metadata': '*MTD_TL.xml', 'recursive': False},
+                         'suffix': '.tif', 'string': '', 'granule_metadata': '*MTD_TL.xml', 'recursive': False},
 
         'S2_S2COR': {'bands_names': {'Blue': 'B02_10m', 'Green': 'B03_10m', 'Red': 'B04_10m', 'Mir': 'B11_20m',
                                      'Mir2': 'B12_20m', 'RedEdg1': 'B05_20m', 'RedEdg2': 'B06_20m',
                                      'RedEdg3': 'B07_20m', 'Nir': 'B08_10m', 'Nir2': 'B8A_20m'},
 
-                     'suffix': '.jp2', 'string': '', 'metadata': '*MTD_TL.xml',
+                     'suffix': '.jp2', 'string': '', 'granule_metadata': '*MTD_TL.xml', 'metadata': 'MTD_MSIL2A.xml',
                      'subdir': 'GRANULE/*/IMG_DATA', 'recursive': True},
 
         'L8_USGS': {'bands_names': {'Green': 'B3', 'Red': 'B4', 'Mir': 'B6', 'Nir': 'B5'}},
 
         'S2_L1C': {'bands_names': {'Blue': 'B02', 'Green': 'B03', 'Red': 'B04', 'Mir': 'B11', 'Mir2': 'B12',
                                    'Nir': 'B08', 'Nir2': 'B8A', 'RedEdg1': 'B05', 'RedEdg2': 'B06', 'RedEdg3': 'B07'},
-                   'suffix': '.jp2', 'string': '', 'metadata': '*MTD_TL.xml',
+                   'suffix': '.jp2', 'string': '', 'granule_metadata': '*MTD_TL.xml',
                    'subdir': 'GRANULE/*/IMG_DATA', 'recursive': False},
 
         'L8_L1C': {'bands_names': {'Aero': 'band1', 'Blue': 'band2', 'Green': 'band3', 'Red': 'band4',
                                    'Mir': 'band6', 'Nir': 'band5', 'Mir2': 'band7'},
                    'suffix': '.tif', 'string': 'sr_band', 'recursive': False}
     }
+
+    band_ids = {'Blue': 1, 'Green': 2, 'Red': 3, 'RedEdg1': 4, 'RedEdg2': 5, 'RedEdg3': 6, 'Nir': 7, 'Nir2': 8,
+                'Mir': 11, 'Mir2': 12}
 
     def __init__(self, input_folder, shape_file=None, product='S2_THEIA', ref_band='Red', single_mode=False):
 
@@ -160,12 +164,21 @@ class DWLoader:
         return bands_path
 
     @property
+    def granule_metadata(self):
+        """
+        Returns the full path folder of the image's granule metadata
+        :return: Posixpath of current image's granule metadata
+        """
+        return next(self.current_image_folder.rglob(self.product_dict['granule_metadata']))
+
+    @property
     def metadata(self):
         """
         Returns the full path folder of the image's metadata
         :return: Posixpath of current image's metadata
         """
         return next(self.current_image_folder.rglob(self.product_dict['metadata']))
+
 
         # if self.product == 'S2_THEIA':
         #     xml = Path(self.images[self._index]).rglob("*MTD_ALL.xml")
@@ -305,6 +318,33 @@ class DWLoader:
 
         return
 
+    def get_offset(self, band):
+        """
+        Get the offset value to be applied to the band. This offset exists in the Sen2Cor images after 25 January 2022.
+        https://sentinels.copernicus.eu/documents/247904/4830984/OMPC.CS.DQR.002.07-2022%20-%20i52r0%20-%20MSI%20L2A%20DQR%20August%202022.pdf/36edbb04-0c6c-fba3-5c34-0ba3be82e91c
+        @param band: Reflectance band
+        @return: Value to be added to the loaded band
+        """
+        if self.product == 'S2_S2COR':
+            # Open the metadata XML file and get the root
+            parser = etree.XMLParser()
+            root = etree.parse(self.metadata.as_posix(), parser).getroot()
+
+            # get the number of the band
+            band_id = self.band_ids[band]
+
+            # Search for the node in the XML tree
+            node_list = root.xpath(f".//BOA_ADD_OFFSET[@band_id={band_id}]")
+
+            # check for the results
+            if len(node_list) == 0:
+                return 0
+            else:
+                return int(node_list[0].text)
+
+        else:
+            return 0
+
     def load_raster_bands(self, bands_list: list):
 
         if len(self.gdal_bands) == 0:
@@ -318,10 +358,15 @@ class DWLoader:
 
                 raster_band = gdal_img.ReadAsArray(buf_xsize=self.x_size,
                                                    buf_ysize=self.y_size,
-                                                   resample_alg=gdal.GRA_Average).astype(dtype=np.float32) / 10000
-                self.raster_bands.update({band: raster_band})
+                                                   resample_alg=gdal.GRA_Average).astype(dtype=np.float32)
 
-                self.invalid_mask |= raster_band == -0.9999
+                self.invalid_mask |= raster_band == -9999
+
+                raster_band[raster_band != -9999] += self.get_offset(band)
+
+                raster_band /= 10000
+
+                self.raster_bands.update({band: raster_band})
 
         return self.raster_bands
 

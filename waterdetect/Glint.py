@@ -14,7 +14,7 @@ class DWGlintProcessor:
         self.adjustable_bands = ['Mir', 'Mir2', 'Nir', 'Nir2']
 
         try:
-            self.glint_array = self.create_glint_array(self.image.metadata, image.product)
+            self.glint_array = self.create_glint_array(self.image.granule_metadata, image.product)
 
         except BaseException as err:
             self.glint_array = None
@@ -56,7 +56,7 @@ class DWGlintProcessor:
         # viewing_angles = 'Viewing_Incidence_Angles_Grids'
 
         sun_zenith = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, f'.//{sun_angles}/Zenith'))[:-1, :-1]
-        sun_azimuth = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, f'.//{sun_angles}/Azimuth'))[:-1,:-1]
+        sun_azimuth = np.deg2rad(DWGlintProcessor.get_grid_values_from_xml(root, f'.//{sun_angles}/Azimuth'))[:-1, :-1]
 
         view_zenith = np.deg2rad(
             DWGlintProcessor.get_grid_values_from_xml(root, './/Viewing_Incidence_Angles_Grids/Zenith'))[:-1, :-1]
@@ -99,12 +99,14 @@ class DWGlintProcessor:
         row_ratio, col_ratio = np.array(new_size) / np.array(old_size)
 
         # row wise interpolation
-        row_idx = (np.ceil(range(1, 1 + int(old_size[0] * row_ratio)) / row_ratio) - 1).astype(int)
+        row_idx = (np.ceil(range(1, 1 + new_size[0]) / row_ratio) - 1).astype(int)
+        row_idx[-1] = -1
 
         # column wise interpolation
-        col_idx = (np.ceil(range(1, 1 + int(old_size[1] * col_ratio)) / col_ratio) - 1).astype(int)
+        col_idx = (np.ceil(range(1, 1 + new_size[1]) / col_ratio) - 1).astype(int)
+        col_idx[-1] = -1
 
-        final_matrix = arr[:, row_idx][col_idx, :]
+        final_matrix = arr[:, col_idx][row_idx, :]
 
         return final_matrix
 
@@ -172,7 +174,7 @@ class DWGlintProcessor:
         if value > 0 and thresh_type == 'INF':
             thresh_grid = value - delta_grid
 
-        thresh_array = DWGlintProcessor.nn_interpolate(thresh_grid, (self.image.x_size, self.image.y_size))
+        thresh_array = DWGlintProcessor.nn_interpolate(thresh_grid, (self.image.y_size, self.image.x_size))
         return thresh_array[~mask] if mask is not None else thresh_array
 
     def __repr__(self):

@@ -232,8 +232,13 @@ class DWWaterDetect:
 
                 # if there is a shape_file specified, clip necessary bands and then update the output projection
                 if image.shape_file:
-                    image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
-                                     self.saver.temp_dir)
+                    # if it is not being called by WaterQuality, for example, clip just the necessary bands
+                    if post_callback is None:
+                        image.clip_bands(self.necessary_bands(self.config.create_composite), self.config.reference_band,
+                                         self.saver.temp_dir)
+                    else:
+                        image.clip_bands(image.product_dict['bands_names'].keys(), self.config.reference_band, self.saver.temp_dir)
+
                     self.saver.update_geo_transform(image.geo_transform, image.projection)
 
                 # load the masks specified in the config (internal masks for theia or landsat) and the external tif mask
@@ -260,7 +265,8 @@ class DWWaterDetect:
                 # create a composite R G B in the output folder
                 if self.config.create_composite or self.config.pdf_reports:
                     composite_name = DWutils.create_composite(image.gdal_bands, self.saver.output_folder,
-                                                              self.config.pdf_reports, self.config.pdf_resolution)
+                                                              self.config.pdf_reports, self.config.pdf_resolution,
+                                                              image.get_offset('Red'))
 
                 else:
                     composite_name = None

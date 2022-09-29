@@ -912,7 +912,7 @@ class DWutils:
         return
 
     @staticmethod
-    def create_composite(bands, folder_name, pdf=True, resolution=600):
+    def create_composite(bands, folder_name, pdf=True, resolution=600, offset=0):
 
         # copy the RGB clipped bands to output directory
 
@@ -925,8 +925,11 @@ class DWutils:
         os.system('gdalbuildvrt -separate ' + composite_base_name + '.vrt ' +
                   red_band + ' ' + green_band + ' ' + blue_band)
 
+        v_min = 0 - offset
+        v_max = 2000 - offset
+
         if pdf:
-            cmd = f'gdal_translate -of pdf -ot Byte -scale 0 2000 -outsize {resolution} 0 ' \
+            cmd = f'gdal_translate -of pdf -ot Byte -scale {v_min} {v_max} -outsize {resolution} 0 ' \
                   + composite_base_name + '.vrt ' + composite_base_name + '.pdf'
             os.system(cmd)
 
