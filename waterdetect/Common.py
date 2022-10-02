@@ -844,7 +844,7 @@ class DWutils:
         plot_colors = ['goldenrod', 'darkorange', 'tomato', 'brown', 'gray', 'salmon', 'black', 'orchid', 'firebrick','orange', 'cyan']
         # plot_colors = list(colors.cnames.keys())
 
-        fig, ax1 = plt.subplots(figsize=(15, 10), dpi=100)
+        fig, ax1 = plt.subplots(num=1, figsize=(15, 10), dpi=100)
 
         k = np.unique(data[:, 2])
 
@@ -1180,7 +1180,7 @@ class DWutils:
         if negative_values == 'mask':
             for band in bands_list:
                 # update the given mask
-                mask[np.where(bands <= 0)] = 1
+                mask[np.where(band <= 0)] = 1
                 results_list.append(np.where(band <= 0, -9999, band))
 
         elif negative_values == 'shift':
@@ -1191,10 +1191,14 @@ class DWutils:
                 results_list.append(bands - min_cte)
 
         elif negative_values == 'shift_all':
-            min_cte = np.min([np.min(band) for band in bands_list])
+            min_cte = np.min([np.min(band[~mask]) for band in bands_list])
             min_cte = min_cte if min_cte < 0 else 0
 
             results_list = [band - min_cte for band in bands_list]
+
+        elif negative_values == 'fixed':
+            for band in bands_list:
+                results_list.append(np.where(band <= 0, 0.001, band))
 
         else:
             print(f'Warning: negative values method {negative_values} not supported. Assuming fixed method')
@@ -1202,6 +1206,6 @@ class DWutils:
                 results_list.append(np.where(band <= 0, 0.001, band))
 
         # if there is just one band, return just the array, and not a list
-        return results_list if len(results_list) > 1 else results_list[0]
+        return results_list #if len(results_list) > 1 else results_list[0]
 
 

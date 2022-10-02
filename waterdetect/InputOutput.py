@@ -362,7 +362,7 @@ class DWLoader:
 
                 self.invalid_mask |= raster_band == -9999
 
-                raster_band[raster_band != -9999] += self.get_offset(band)
+                raster_band[(raster_band != -9999) & (raster_band != 0)] += self.get_offset(band)
 
                 raster_band /= 10000
 
