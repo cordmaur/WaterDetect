@@ -131,7 +131,7 @@ To obtain the default version of this file,  one can use `waterdetec -GC` and th
 
 ## Usage as Script
 The basic usage for the waterdetect is:<br>
-`waterdetect -i c:/input_folder -i -c:/output_folder -p S2_THEIA`
+`waterdetect -i c:/input_folder -o -c:/output_folder -p S2_THEIA`
 
 The input directory should contain the uncompressed folders for the images. The script will loop through all folders in the input directory and save the water masks, graphs and reports to the output folder. The output folder must be created beforehand.
 
