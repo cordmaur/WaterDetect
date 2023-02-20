@@ -8,7 +8,7 @@ from waterdetect import jaccard_score, gdal
 from waterdetect import __version__ as wd_version
 
 import numpy as np
-from PyPDF2 import PdfFileMerger
+from PyPDF2 import PdfMerger
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
 import os
 
@@ -220,7 +220,7 @@ class DWWaterDetect:
         dw_image = None
 
         # if pdf_report is true, creates a FileMerger to assembly the FullReport
-        pdf_merger = PdfFileMerger() if self.config.pdf_reports else None
+        pdf_merger = PdfMerger() if self.config.pdf_reports else None
 
         # Iterate through the loader. Each image is a folder in the input directory.
         for image in self.loader:
@@ -345,7 +345,7 @@ class DWWaterDetect:
     def create_mask_report(self, image, band_combination, composite_name, pdf_merger, post_callback):
         # if pdf_reports, create a FileMerger for this specific band combination
         if self.config.pdf_reports & (pdf_merger is not None):
-            pdf_merger_image = PdfFileMerger()
+            pdf_merger_image = PdfMerger()
             pdf_merger_image.append(composite_name + '.pdf')
             # pdf_merger_image.append(invalid_mask_name)
         else:
