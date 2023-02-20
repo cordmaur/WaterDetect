@@ -18,6 +18,9 @@ All the details and tests has been described in the article <b>Automatic Water D
 Cordeiro, M. C. R.; Martinez, J.-M.; Peña-Luque, S. Automatic Water Detection from Multidimensional Hierarchical Clustering for Sentinel-2 Images and a Comparison with Level 2A Processors. Remote Sensing of Environment 2021, 253, 112209. https://doi.org/10.1016/j.rse.2020.112209.
 
 ## Changelog
+### Release 1.5.15
+- Corrected PyPDF2 deprecation error.<br>
+
 ### Release 1.5.13
 - Code updated to comply with Sen2Cor processing baseline 04.00, that started in January, 25th 2022.<br>
 BoA offset was added to the Sen2Cor workflow to deal with negative values. Oficial release:
