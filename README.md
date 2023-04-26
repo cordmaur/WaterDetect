@@ -141,14 +141,15 @@ The input directory should contain the uncompressed folders for the images. The 
 If the config file is not specified, the script will search for WaterDetect.ini in the current folder.
 
 ## Usage from Console
-Once properly installed, the WaterDetect can be run from a console or a Jupyter Notebook, by import the package and calling DWDetectWater.
+Once properly installed, the WaterDetect can be run from a console or a Jupyter Notebook, by importing the package and calling DWDetectWater.
 
 ```
 >>> import waterdetect as wd
 >>> !waterdetect -GC
->>> wd.DWWaterDetect.run_batch(input_folder='D:\Images\Input\',
+>>> wd.DWWaterDetect.run_water_detect(input_folder='D:\Images\Input\',
                                output_folder='D:\Images\Output',
                                shape_file='D:\Shp\SomeShapefile.shp',
+                               single_mode=False,
                                product=wd.DWProducts.Sentinel2_THEIA,
                                config_file='WaterDetect.ini'
                               )
