@@ -1,6 +1,16 @@
+
+from pathlib import Path
+# Get the path of the current module
+project_path = Path(__file__).parent
+print("Path of the current module:", project_path)
+
+
 from builtins import RuntimeError
 import setuptools
 import waterdetect
+
+
+
 short_description = 'WaterDetect generates open water cover mask for L2A Sentinel 2 imagery without any a priori knowledge on the scene.'\
                     ' It can also be used for Landsat 8 images and for other multispectral clustering/segmentation tasks.'
 
@@ -16,6 +26,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/cordmaur/WaterDetect",
     packages=setuptools.find_packages(),
+    # packages=['waterdetect'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
@@ -25,6 +36,10 @@ setuptools.setup(
     entry_points={
         'console_scripts': ['waterdetect=runWaterDetect:main', 'process_ext_masks=runWaterDetect:process_ext_masks'],
     },
+    extras_require={
+        'cloud': ['planetary-computer'],
+    },
+
     include_package_data=True,
     package_data={'waterdetect': ['../WaterDetect.ini', '../runWaterDetect.py']},
     install_requires=[
