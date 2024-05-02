@@ -1,69 +1,20 @@
 """Waterdetect-cloud module"""
 
+from functools import partial
 from concurrent.futures import ThreadPoolExecutor
-from typing import Tuple, List, Optional, Union, Callable
+from typing import List, Union, Callable
 import inspect
 
-import numpy as np
 import pandas as pd
 
 import matplotlib.pyplot as plt
 
-import rasterio as rio
-import xarray as xr
-
-import planetary_computer as pc
-import pystac_client
 import pystac
 
+import xarray as xr
+import rioxarray as xrio
 
-CATALOG_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
-
-
-class PCDownloader:
-    """PCDownloader class"""
-
-    @staticmethod
-    def get_asset(
-        item: pystac.Item,
-        asset: str,
-        shape: Optional[Tuple[int, int]] = None,
-        scale: float = 1e-4,
-    ):
-        """Get asset"""
-        href = pc.sign(item.assets[asset]).href
-        ds = rio.open(href)
-
-        # Read it with the desired output shape (decimated reading)
-        data = ds.read(1, out_shape=shape) * scale
-        data[data == ds.nodata] = np.nan
-
-        # create the lats and longs coordinates, considering the bounds and the shape
-        longs = np.linspace(ds.bounds.left, ds.bounds.right, shape[1])
-        lats = np.linspace(ds.bounds.top, ds.bounds.bottom, shape[0])
-
-        arr = xr.DataArray(data=data, dims=["y", "x"], coords=[lats, longs])
-
-        # set CRS and GeoTransform
-        arr = arr.rio.write_crs(ds.crs)
-        transform = rio.transform.from_bounds(
-            *ds.bounds, height=shape[0], width=shape[1]
-        )
-        arr = arr.rio.write_transform(transform)
-
-        return arr
-
-    @staticmethod
-    def get_assets(
-        item: pystac.Item, assets: List, shape: Tuple[int, int], scale: float = 1e-4
-    ):
-        """Get assets"""
-        # return xr.merge([PCDownloader.get_asset(item, a, shape, scale) for a in assets])
-        arrs = {a: PCDownloader.get_asset(item, a, shape, scale) for a in assets}
-
-        cube = xr.concat(arrs.values(), dim="band")
-        cube["band"] = list(arrs.keys())
-        return cube
+from .planetary import PCDownloader
 
 
 class S2Tile:
@@ -163,6 +114,9 @@ class S2Tile:
             s += f"Loaded bands: {list(self.bands.keys())}"
         return s
 
+    def __setitem__(self, key, value):
+        self.bands[key] = value
+
 
 class S2TileDownloader:
     """S2TileDownloader class"""
@@ -170,7 +124,7 @@ class S2TileDownloader:
     collection = "sentinel-2-l2a"
 
     def __init__(self):
-        self.catalog = pystac_client.Client.open(CATALOG_URL)
+        self.downloader = PCDownloader()
         self.items = None
 
     # ------ Private Methods ------
@@ -212,13 +166,12 @@ class S2TileDownloader:
         """Search tile"""
         query = {"eo:cloud_cover": {"lt": cloud_cover}, "s2:mgrs_tile": {"eq": tile}}
 
-        items = self.catalog.search(
+        items = self.downloader.search(
             query=query,
             datetime=time_range,
             collections=S2TileDownloader.collection,
-        ).item_collection()
+        )
 
-        print(f"{len(items)} items found.")
         print(
             "You can access them through `.items` and see their thumbnails (.plot_thumbs())"
         )
@@ -233,13 +186,14 @@ class S2TileDownloader:
             }
             for i in items
         }
-        df = pd.DataFrame(d).T.reset_index(drop=False)
+        df = pd.DataFrame(d).T
         df.index.name = "Item"
+        df = df.reset_index(drop=False)
         df["Selected"] = True
 
         self.items = df  # .reset_index(drop=False)
 
-    def plot_thumbs(self, cols=4, cell_size=5):
+    def plot_thumbs(self, cols: int = 4, cell_size: int = 4, debug: bool = False):
         """
         Plot thumbs
 
@@ -256,30 +210,41 @@ class S2TileDownloader:
         )
 
         axs = axs.flatten()
+
         futures = []
         with ThreadPoolExecutor(max_workers=6) as executor:
             for idx, (_, row) in enumerate(self.items.iterrows()):
                 ax = axs[idx]
 
-                futures.append(
-                    executor.submit(
-                        S2TileDownloader._plot_thumb,
-                        idx=idx,
-                        tile=row["S2Tile"],
-                        selected=row["Selected"],
-                        ax=ax,
-                    )
+                # Create a partial function to plot the thumbnail in ax
+                f = partial(
+                    S2TileDownloader._plot_thumb,
+                    idx=idx,
+                    tile=row["S2Tile"],
+                    selected=row["Selected"],
+                    ax=ax,
                 )
-                # row["S2Tile"].plot_thumb(ax=ax)
+
+                if debug:
+                    f()
+                else:
+                    futures.append(executor.submit(f))
 
         fig.suptitle(f"S2 tiles ({n})")
 
         # adjust the borders
         S2TileDownloader._adjust_borders(axs, self.items["Selected"].to_list())
 
-        return futures
+        self.futures = futures
 
     def select_scenes(self, scenes: List[int]):
         """Select scenes"""
         self.items["Selected"] = False
         self.items.loc[scenes, "Selected"] = True
+
+    def __getitem__(self, selector: Union[int, slice, List[int]]):
+        """Get item"""
+        if isinstance(selector, int):
+            return self.items.loc[selector, "S2Tile"]
+        else:
+            return self.items.loc[selector, "S2Tile"].to_list()
