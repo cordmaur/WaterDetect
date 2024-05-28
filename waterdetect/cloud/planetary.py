@@ -9,6 +9,7 @@ import numpy as np
 
 import xarray as xr
 import rasterio as rio
+import rioxarray as xrio
 
 import planetary_computer as pc
 import pystac

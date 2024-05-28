@@ -2,120 +2,76 @@
 
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Union, Callable
-import inspect
+from typing import List, Union
 
 import pandas as pd
 
 import matplotlib.pyplot as plt
 
-import pystac
-
 import xarray as xr
-import rioxarray as xrio
+import rioxarray as xrio  # pylint: disable=W0611
 
+from .tile import ImgTile
 from .planetary import PCDownloader
 
 
-class S2Tile:
+class S2Tile(ImgTile):
     """S2Tile class"""
 
-    thumb_shape = (512, 512)
-    shape = (10980, 10980)
+    metadata = {
+        "bands_names": {
+            "Blue": "B02",
+            "Green": "B03",
+            "Red": "B04",
+            "Mir": "B11",
+            "Mir2": "B12",
+            "Nir": "B08",
+            "Nir2": "B8A",
+            "RedEdg1": "B05",
+            "RedEdg2": "B06",
+            "RedEdg3": "B07",
+        },
+        "scale": 1e-4,
+        "base_resolution": 10,
+        "shape": (10980, 10980),
+        "qa_band": "SCL",
+        "product_type": "S2_PLANETARY",
+    }
 
-    def __init__(self, s2item: pystac.Item):
-        self.item = s2item
+    Sen2CorMaskList = {
+        "NO_DATA": 0,
+        "SATURATED_OR_DEFECTIVE": 1,
+        "DARK_AREA_PIXELS": 2,
+        "CLOUD_SHADOWS": 3,
+        "VEGETATION": 4,
+        "NOT_VEGETATED": 5,
+        "WATER": 6,
+        "UNCLASSIFIED": 7,
+        "CLOUD_MEDIUM_PROBABILITY": 8,
+        "CLOUD_HIGH_PROBABILITY": 9,
+        "THIN_CIRRUS": 10,
+        "SNOW": 11,
+    }
 
-        self._thumb = None
-        self.bands = {}
+    # Overviews: 5490x5490, 2745x2745, 1373x1373, 687x687, 344x344
 
-    # ------ Properties ------
-    @property
-    def thumb(self):
-        """Thumb"""
-        if self._thumb is None:
-            self._thumb = PCDownloader.get_assets(
-                item=self.item,
-                assets=["B04", "B03", "B02"],
-                shape=S2Tile.thumb_shape,
-                scale=1e-4,
-            )
+    def get_mask(self, mask_list: List[str]) -> xr.DataArray:
+        """
+        Get the mask for the Sentinel-2 sensor, considering the SCL layer
 
-        return self._thumb
+        Args:
+            mask_list (List[str]): List of masks to consider
 
-    @property
-    def datestr(self):
-        """Date"""
-        return self.item.datetime.strftime("%Y-%m-%d")
+        Returns:
+            _type_: xr.DataArray
+        """
+        scl = self.get_band(self.metadata["qa_band"], scale=1)
 
-    # ------ Private Methods ------
+        mask = xr.zeros_like(scl)
+        for mask_name in mask_list:
+            mask |= scl == self.Sen2CorMaskList[mask_name.upper()]
 
-    # ------ Public Methods ------
-    def plot_thumb(self, ax: plt.Axes = None):
-        """Plot thumb"""
-        if not ax:
-            _, ax = plt.subplots(figsize=(5, 5))
-
-        self.thumb.plot.imshow(ax=ax, rgb="band", vmin=0, vmax=0.25)
-
-    def get_band(self, band: str):
-        """Get item"""
-
-        if band not in self.bands:
-            self.bands[band] = PCDownloader.get_asset(
-                item=self.item,
-                asset=band,
-                shape=S2Tile.shape,
-                scale=1e-4,
-            )
-
-        return self.bands[band]
-
-    def get_cube(self, bands: List[str]):
-        """Get cube"""
-
-        cube = xr.concat([self.get_band(b) for b in bands], dim="band")
-        cube["band"] = list(bands)
-        return cube
-
-    def add_math_band(self, function: Callable):
-        """Add math band"""
-        func_args = inspect.signature(function)
-
-        bands = [
-            arg
-            for arg in func_args.parameters
-            if func_args.parameters[arg].default
-            == inspect._empty  # pylint: disable=protected-access
-        ]
-
-        args = {b: self[b] for b in bands}
-
-        name = function.__name__
-        self.bands[name] = function(**args)
-
-    # ------ Magic Methods ------
-
-    def __getitem__(self, selector: Union[str, List[str]]):
-        """Get item"""
-
-        if isinstance(selector, str):
-            return self.get_band(selector)
-        else:
-            return self.get_cube(selector)
-
-    def __str__(self) -> str:
-        return self.item.properties["s2:mgrs_tile"]
-
-    def __repr__(self) -> str:
-        s = f"{self.item.properties['s2:mgrs_tile']}({self.datestr})\n"
-
-        if len(self.bands) > 0:
-            s += f"Loaded bands: {list(self.bands.keys())}"
-        return s
-
-    def __setitem__(self, key, value):
-        self.bands[key] = value
+        return mask.astype('bool')
 
 
 class S2TileDownloader:
@@ -125,15 +81,16 @@ class S2TileDownloader:
 
     def __init__(self):
         self.downloader = PCDownloader()
-        self.items = None
+        self.items = self.items_df = None
+        self.futures = []
 
     # ------ Private Methods ------
     @staticmethod
     def _plot_thumb(idx: int, tile: S2Tile, selected: bool, ax: plt.Axes):
         """Plot thumb"""
         tile.plot_thumb(ax=ax)
-        dt = tile.item.datetime.strftime("%Y-%m-%d")
-        cloud_cover = round(tile.item.properties["eo:cloud_cover"], 2)
+        dt = tile.stac_item.datetime.strftime("%Y-%m-%d")
+        cloud_cover = round(tile.stac_item.properties["eo:cloud_cover"], 2)
 
         title = f"Id: {idx} {'- selected' if selected else ''}"
         title += f"\n{dt} - {cloud_cover}%"
@@ -172,13 +129,12 @@ class S2TileDownloader:
             collections=S2TileDownloader.collection,
         )
 
-        print(
-            "You can access them through `.items` and see their thumbnails (.plot_thumbs())"
-        )
+        print("You can access them through `.items` or `.items_df`")
+        print("You can also select them and see their thumbnails (.plot_thumbs())")
 
         # convert the items to a simple Pandas DataFrame
         d = {
-            i: {
+            i.id: {
                 "Datetime": i.datetime.strftime("%Y-%m-%d %H:%M:%S"),
                 "CloudCover": round(i.properties["eo:cloud_cover"], 2),
                 # "Tile": tile,
@@ -191,15 +147,17 @@ class S2TileDownloader:
         df = df.reset_index(drop=False)
         df["Selected"] = True
 
-        self.items = df  # .reset_index(drop=False)
+        self.items_df = df
+        self.items = list(items)
 
     def plot_thumbs(self, cols: int = 4, cell_size: int = 4, debug: bool = False):
         """
         Plot thumbs
 
         Args:
-            cols (int, optional): _description_. Defaults to 4.
-            cell_size (int, optional): _description_. Defaults to 5.
+            cols (int, optional): Number of columns in the thumbs grid. Defaults to 4.
+            cell_size (int, optional): Size of each thumbnail. Defaults to 5.
+            debug (bool): If True, make calls syncronously. Defaults to False.
         """
 
         n = len(self.items)
@@ -213,7 +171,7 @@ class S2TileDownloader:
 
         futures = []
         with ThreadPoolExecutor(max_workers=6) as executor:
-            for idx, (_, row) in enumerate(self.items.iterrows()):
+            for idx, (_, row) in enumerate(self.items_df.iterrows()):
                 ax = axs[idx]
 
                 # Create a partial function to plot the thumbnail in ax
@@ -233,18 +191,18 @@ class S2TileDownloader:
         fig.suptitle(f"S2 tiles ({n})")
 
         # adjust the borders
-        S2TileDownloader._adjust_borders(axs, self.items["Selected"].to_list())
+        S2TileDownloader._adjust_borders(axs, self.items_df["Selected"].to_list())
 
         self.futures = futures
 
     def select_scenes(self, scenes: List[int]):
-        """Select scenes"""
-        self.items["Selected"] = False
-        self.items.loc[scenes, "Selected"] = True
+        """Select scenes by index. The indices are available in thumbs or `items_df`"""
+        self.items_df["Selected"] = False
+        self.items_df.loc[scenes, "Selected"] = True
 
     def __getitem__(self, selector: Union[int, slice, List[int]]):
         """Get item"""
         if isinstance(selector, int):
-            return self.items.loc[selector, "S2Tile"]
+            return self.items_df.loc[selector, "S2Tile"]
         else:
-            return self.items.loc[selector, "S2Tile"].to_list()
+            return self.items_df.loc[selector, "S2Tile"].to_list()

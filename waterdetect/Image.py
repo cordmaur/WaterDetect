@@ -107,7 +107,7 @@ class DWImageClustering:
         # check if the MBWI index exist
         if ('mbwi' in required_indices) and ('mbwi' not in bands.keys()):
             mbwi, mbwi_mask = DWutils.calc_mbwi(bands, 3, invalid_mask)
-            invalid_mask |= ndwi_mask
+            invalid_mask |= mbwi_mask
             bands.update({'mbwi': mbwi})
 
         # todo: check the band for Principal Component Analysis
@@ -690,7 +690,6 @@ class DWImageClustering:
             self.clusters_labels = train_clusters_labels
 
         # after obtaining the final labels, clip bands with superior limit
-
         for band, value in zip(self.config.clip_band, self.config.clip_sup_value):
             if value is not None:
                 if self.config.glint_mode and (self.glint_processor is not None):
