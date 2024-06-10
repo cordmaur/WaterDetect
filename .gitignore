@@ -1,3 +1,5 @@
+*.key
+
 __pycache__/
 .idea/
 .venv/

@@ -89,7 +89,7 @@ class ImgTile(ABC):
             self.bands.clear()
             self.shape = shape
 
-    # ------ Private Methods ------
+    # ------ Private Met hods ------
 
     # ------ Public Methods ------
     def convert_common_names(self, common_names: List[str]):

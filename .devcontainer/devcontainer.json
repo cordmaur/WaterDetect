@@ -15,7 +15,7 @@
 		// "source=D:/OneDrive/Trabalho/SOE/COVEC/RelatoriosChuva/reports_folder,target=/workspaces/reports_folder,type=bind"
 	],
 	"runArgs": [
-		"--memory=36g",
+		"--memory=50g",
 		"--memory-swap=50g",
 		"--oom-kill-disable"
 	],

@@ -1,4 +1,5 @@
 """WaterdetectCloud Engine module"""
+
 from pathlib import Path
 from typing import Set, Dict, Optional, List
 import numpy as np
@@ -7,7 +8,7 @@ import matplotlib.pyplot as plt
 
 import waterdetect as wd
 from waterdetect.Common import DWutils
-from .tile import ImgTile
+from .__tile import ImgTile
 from .utils import WDCloudUtils
 
 
@@ -17,6 +18,7 @@ class WDCloudEngine:
     It is responsible for loading the necessary bands, running the clustering algorithm,
     and generating the graphs.
     """
+
     # ########## Initialization Methods ##########
     def __init__(
         self,
@@ -43,7 +45,6 @@ class WDCloudEngine:
         """
         Load the invalid mask for this scene, considering the MASKS Section from the config file.
         """
-
         # first get the masks from the config file
         masks = self.config.get_masks_list(self.img.metadata["product_type"])
 
@@ -87,7 +88,7 @@ class WDCloudEngine:
 
         print(f"Loading bands: {common_names}\nOutput shape {self.img.shape}")
         bands_dict = {
-            common_name: self.img[band].data
+            common_name: self.img[band].compute().data.squeeze().astype("float32")
             for common_name, band in zip(common_names, bands)
         }
 
@@ -107,27 +108,28 @@ class WDCloudEngine:
             config=self.config,
         )
 
-        # Run the main algo 
+        return wdetect
+
+        # Run the main algo
         self.clusters = wdetect.run_detect_water()
-       
+
         # Adjust the mask accordingly
         self.clusters[self.mask] = 0
-        self.mask |= (self.clusters == 0)
+        self.mask |= self.clusters == 0
 
         # Create the output water mask
-        self.water = (self.clusters == 1).astype('uint8')
+        self.water = (self.clusters == 1).astype("uint8")
         self.water[self.mask] = 255
 
     # ########## Static Methods ##########
     @staticmethod
     def save_graphs(graphs: dict, output_folder: str):
-        
-        output_folder = Path(output_folder)
-        
-        for key, fig in graphs.items():
-            fname = f'Graph_{key}.png'
-            fig.savefig(output_folder/fname)
 
+        output_folder = Path(output_folder)
+
+        for key, fig in graphs.items():
+            fname = f"Graph_{key}.png"
+            fig.savefig(output_folder / fname)
 
     # ########## Plotting Methods ##########
     def plot_graph(self, samples, idxs, bands: List) -> plt.Figure:
@@ -141,20 +143,20 @@ class WDCloudEngine:
         # plot the samples
         fig, ax = plt.subplots()
 
-        for cluster in np.unique(samples.astype('uint8')):
-            label = 'Water' if cluster == 1 else f'Cluster {cluster}'
+        for cluster in np.unique(samples.astype("uint8")):
+            label = "Water" if cluster == 1 else f"Cluster {cluster}"
             ax.scatter(
-                x_values[samples == cluster], 
+                x_values[samples == cluster],
                 y_values[samples == cluster],
-                s=1,            
-                label=label
+                s=1,
+                label=label,
             )
-            
+
         # Retrieve the handles and labels for the legend
         handles, labels = ax.get_legend_handles_labels()
 
         # Create a new legend with larger markers
-        ax.legend(handles, labels, loc='upper right', markerscale=5)
+        ax.legend(handles, labels, loc="upper right", markerscale=5)
 
         ax.set_ylabel(y_band)
         ax.set_xlabel(x_band)
@@ -164,7 +166,7 @@ class WDCloudEngine:
         return fig
 
     def generate_graphs(self, graph_bands: List):
-        self.graphs = {} 
+        self.graphs = {}
 
         n_samples = 1000
 
@@ -175,36 +177,35 @@ class WDCloudEngine:
         n_samples = n_samples if n_samples < len(clusters) else len(clusters)
         idxs = np.random.randint(0, len(clusters), size=n_samples)
 
-        # grab the samples 
+        # grab the samples
         samples = clusters[idxs]
 
         # Switch to a non-interactive backend
         current_backend = plt.get_backend()
-        plt.switch_backend('agg')
+        plt.switch_backend("agg")
 
         # adjust the graph_bands in case someone pass just one combination
         if isinstance(graph_bands[0], str):
             graph_bands = [graph_bands]
 
         for bands in graph_bands:
-            print(f'Generating graph: {bands}')
-            self.graphs['_'.join(bands)] = self.plot_graph(samples, idxs, bands)
-        
+            print(f"Generating graph: {bands}")
+            self.graphs["_".join(bands)] = self.plot_graph(samples, idxs, bands)
+
         plt.switch_backend(current_backend)
 
         print("Graphs are available in `.graphs` attribute.")
 
     # ########## Public Methods ##########
-    def detect_water_single(self, bands_combination: List, output_folder: Optional[str] = None):
+    def detect_water_single(
+        self, bands_combination: List, output_folder: Optional[str] = None
+    ):
 
         # First, ran the main method with the specific bands_combination
         self._detect_water(bands_combination)
 
         # Then, generate the graphs according to the bands in the config file
-        self.generate_graphs(graph_bands = self.config.graph_bands, output_folder=output_folder)
-
-
-
-
-
-
+        self.generate_graphs(
+            graph_bands=self.config.graphs_bands,
+            # output_folder=output_folder
+        )

@@ -4,7 +4,7 @@ import pytest
 import pystac
 import xarray as xr
 
-from waterdetect.cloud.tile import ImgTile
+from waterdetect.cloud.__tile import ImgTile
 
 
 class MockItemClass:
@@ -28,6 +28,9 @@ class MockTileClass(ImgTile):
         },
         "scale": 1e-4,
     }
+
+    def get_mask(self):
+        pass
 
 
 @pytest.fixture(name="stac_item")
