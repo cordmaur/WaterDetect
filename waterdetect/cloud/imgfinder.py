@@ -118,6 +118,10 @@ class RSImageFinder:
         self.items["tiling"] = self.img_type.get_tiling()
         self.items["tile"] = list(map(self.img_type.extract_tile, items))
 
+        self.items["str_date"] = self.items["date"].map(
+            lambda x: x.strftime("%Y-%m-%d")
+        )
+
         # Get the tiles within the search
         self.shape = ds[band].shape[-2:]
 
@@ -256,19 +260,24 @@ class RSImageFinder:
         if not self.stac_items:
             raise ValueError("No items found. Run `search_region` first.")
 
-        n = len(self.dates)
+        dates = [
+            pd.to_datetime(d).to_pydatetime() for d in self.thumbs_cube.time.values
+        ]
+        n = len(dates)
         rows = n // col_wrap + (1 if n % col_wrap > 0 else 0)
 
         fig, axs = plt.subplots(
             rows, col_wrap, figsize=(col_wrap * cell_size, rows * cell_size)
         )
 
-        fig.suptitle(f"Thumbnails for {self.dates[0]} to {self.dates[-1]}")
+        fig.suptitle(
+            f"Thumbnails for {dates[0].strftime('%Y-%m-%d')} to {dates[-1].strftime('%Y-%m-%d')}"
+        )
 
         # Flatten the axes
         axs = axs.flatten()
 
-        for i, date in enumerate(self.dates):
+        for i, date in enumerate(dates):
             ax = axs[i]
             img = self.thumbs_cube.isel(time=i)
 
@@ -278,7 +287,7 @@ class RSImageFinder:
             else:
                 img.plot.imshow(ax=ax, rgb="band", vmax=vmax, robust=True)
 
-            ax.set_title(f"{i}: {date}")
+            ax.set_title(f"{i}: {date.strftime('%Y-%m-%d')}")
 
         RSImageFinder._adjust_borders(axs)
 
@@ -405,6 +414,26 @@ class RSImageFinder:
         )
 
         self.set_state(search.item_collection())
+
+    def get_image(self, date: str) -> RSImage:
+        """Get the image corresponding to a specific date.
+
+        Args:
+            date (str): Date in string format YYYY-MM-DD
+
+        Returns:
+            RSImage: S2Image or L8Image with the output
+        """
+        if not (self.items["str_date"] == date).any():
+            raise ValueError(f"No image found for date {date}")
+
+        df = self.items.query(f"str_date == '{date}'")
+
+        # Create the image by passing the list of stac itens and the bbox
+        img = self.img_type(
+            df["item"].to_list(), bbox=self.bbox  # pylint: disable=E1136
+        )
+        return img
 
     # ---------------------------------------------------------------------
     # Dunder methods
