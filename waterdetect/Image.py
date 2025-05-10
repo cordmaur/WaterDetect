@@ -107,7 +107,7 @@ class DWImageClustering:
         # check if the MBWI index exist
         if ('mbwi' in required_indices) and ('mbwi' not in bands.keys()):
             mbwi, mbwi_mask = DWutils.calc_mbwi(bands, 3, invalid_mask)
-            invalid_mask |= ndwi_mask
+            invalid_mask |= mbwi_mask
             bands.update({'mbwi': mbwi})
 
         # todo: check the band for Principal Component Analysis
@@ -266,10 +266,10 @@ class DWImageClustering:
                 raise OSError('MBWI band necessary for detecting water with maxmbwi option')
             water_cluster = self.detect_cluster('value', 'max', 'mbwi')
 
-        elif self.config.detect_water_cluster == 'minmir2':
-            if 'mndwi' not in self.bands.keys():
-                raise OSError('Mir2 band necessary for detecting water with minmir2 option')
-            water_cluster = self.detect_cluster('value', 'min', 'Mir2')
+        elif self.config.detect_water_cluster == 'minmir':
+            if 'Mir' not in self.bands.keys():
+                raise OSError('Mir band necessary for detecting water with minmir2 option')
+            water_cluster = self.detect_cluster('value', 'min', 'Mir')
 
         elif self.config.detect_water_cluster == 'maxndwi':
             if 'ndwi' not in self.bands.keys():
@@ -442,7 +442,7 @@ class DWImageClustering:
         matrice_cluster[indices_array[0][self.clusters_labels == self.water_cluster['clusterid']],
                         indices_array[1][self.clusters_labels == self.water_cluster['clusterid']]] = 1
 
-        print('Assgnin 1 to cluster_id {}'.format(self.water_cluster['clusterid']))
+        print('Assigning 1 to cluster_id {}'.format(self.water_cluster['clusterid']))
 
         # loop through the remaining labels and apply value >= 3
         new_label = 2
